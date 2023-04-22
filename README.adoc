@@ -4,9 +4,7 @@
 
 - https://git-scm.com/downloads[Git]
 - https://developer.arm.com/downloads/-/gnu-rm[Arm GNU Toolchain (for GDB)]
-- Some sort of programming environment
-
-You can use whatever IDE you like, I personally use neovim and the terminal. If you are unfamiliar with setting up your own programming environment, https://code.visualstudio.com/download[install VSCode].
+- Some sort of programming environment. If you are unsure, https://code.visualstudio.com/download[install VSCode]
 
 == Installing Zig
 
