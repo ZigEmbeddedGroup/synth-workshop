@@ -6,7 +6,7 @@ const uf2 = @import("deps/uf2/src/main.zig");
 
 const demos: []const []const u8 = &.{
     "demos/blinky.zig",
-    "demos/uart_debug.zig",
+    "demos/uart.zig",
     "demos/single_tone.zig",
 };
 
@@ -16,7 +16,7 @@ pub fn build(b: *Builder) void {
     for (demos) |demo_path| {
         const workshop_module = b.createModule(.{
             .source_file = .{
-                .path = "src/main.zig",
+                .path = "src/workshop.zig",
             },
         });
         const exe = rp2040.addPiPicoExecutable(b, .{

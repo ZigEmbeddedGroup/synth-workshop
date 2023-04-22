@@ -9,7 +9,9 @@ const irq = rp2040.irq;
 const peripherals = microzig.chip.peripherals;
 const IO_BANK0 = peripherals.IO_BANK0;
 
+// code for this workshop
 const workshop = @import("workshop");
+const monitor = workshop.monitor;
 const SuperLoopFlags = workshop.SuperLoopFlags;
 const Oscillator = workshop.Oscillator;
 const I2S = workshop.I2S(.{
@@ -17,26 +19,35 @@ const I2S = workshop.I2S(.{
     .sample_type = u32,
 });
 
-// this is guaranteed to be initialized before the interrupt fires
+// global state
 var i2s: I2S = undefined;
-
-const sample_rate = 96_000;
-const SampleType = u32;
+var montior: workshop.Monitor(.{}) = undefined;
 var pressed = workshop.Volatile(bool).init(false);
 
+// configuration
+const sample_rate = 44_100;
+const SampleType = u32;
+const uart = rp2040.uart.num(0);
 const pins = struct {
     const button = gpio.num(9);
     const debug = gpio.num(10);
 };
 
+pub const std_options = struct {
+    pub const logFn = monitor.log;
+};
+
 pub const microzig_options = struct {
     pub const interrupts = struct {
+        // include the monitor interrupts
+        pub usingnamespace monitor.interrupts;
+
         pub fn IO_IRQ_BANK0() void {
             // this isn't really required in this example, but if there were
             // other interrupts that accessed the shared variable, it's
             // possible that they might preempt this interrupt.
-            cpu.cli();
-            defer cpu.sei();
+            cpu.disable_interrupts();
+            defer cpu.enable_interrupts();
 
             pressed.store(1 == pins.button.read());
 
@@ -49,6 +60,8 @@ pub const microzig_options = struct {
 };
 
 pub fn main() !void {
+    monitor.init();
+
     // debug gpio for interrupt handling
     pins.debug.set_function(.sio);
     pins.debug.set_direction(.out);
@@ -75,9 +88,10 @@ pub fn main() !void {
     });
 
     var osc = Oscillator(sample_rate).init(440);
+    std.log.info("hello", .{});
 
     // lfg
-    cpu.sei();
+    cpu.enable_interrupts();
 
     while (true) {
         if (i2s.is_writable()) {
@@ -87,10 +101,10 @@ pub fn main() !void {
             // maximum value of the oscillator corresponds to 2π radians. We
             // get a sawtooth waveform if we use the angle as the magnitude of
             // our generated wave.
-            const sample: SampleType = if (1 == pins.button.read())
+            const sample: SampleType = (if (pins.button.read() == 1)
                 @truncate(SampleType, osc.angle >> 32 - @bitSizeOf(SampleType))
             else
-                (std.math.maxInt(SampleType) / 2);
+                (std.math.maxInt(SampleType) / 2)) >> 4;
 
             pins.debug.put(0);
             defer pins.debug.put(1);

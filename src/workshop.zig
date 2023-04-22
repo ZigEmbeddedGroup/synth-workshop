@@ -9,6 +9,33 @@ const rp2040 = microzig.hal;
 const clocks = rp2040.clocks;
 
 pub const I2S = @import("i2s.zig").I2S;
+pub const monitor = @import("monitor.zig");
+
+pub fn GlitchFilter(comptime samples: usize) type {
+    return packed struct {
+        filter: std.meta.Int(.unsigned, samples),
+        pressed: bool,
+
+        const Self = @This();
+
+        pub fn init() Self {
+            return Self{
+                .filter = 0,
+                .pressed = false,
+            };
+        }
+
+        pub fn update(self: *Self, sample: u1) void {
+            self.filter <<= 1;
+            self.filter |= sample;
+
+            if (self.pressed and self.filter == 0)
+                self.pressed = false
+            else if (!self.pressed and @popCount(self.filter) == samples)
+                self.pressed = true;
+        }
+    };
+}
 
 pub fn Volatile(comptime T: type) type {
     return struct {
@@ -27,8 +54,8 @@ pub fn Volatile(comptime T: type) type {
         }
 
         pub fn load_with_disabled_irqs(self: *volatile Self) T {
-            cpu.cli();
-            defer cpu.sei();
+            cpu.disable_interrupts();
+            defer cpu.enable_interrupts();
 
             return self.load();
         }
@@ -112,24 +139,6 @@ pub fn SuperLoopFlags(comptime names: []const []const u8, comptime options: Supe
                     @field(self.flags, name) = true;
                 }
             }
-        }
-    };
-}
-
-pub fn SineLookupTable(comptime T: type) type {
-    return struct {
-        arr: []const T,
-
-        pub fn init(
-            comptime sample_rate: u32,
-            comptime frequency_hz: u32,
-        ) SineLookupTable(T) {
-            const one_period_samples = sample_rate / frequency_hz;
-            const table_samples = one_period_samples / 4;
-
-            return SineLookupTable(T){
-                .arr = &std.mem.zeroes([table_samples]T),
-            };
         }
     };
 }

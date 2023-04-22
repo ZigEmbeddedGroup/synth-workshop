@@ -10,7 +10,7 @@ const rp2040 = microzig.hal;
 const gpio = rp2040.gpio;
 const time = rp2040.time;
 
-const led = gpio.num(25);
+const led = gpio.num(29);
 
 pub fn main() void {
     // peripherals on the RP2040 are initialized by reseting their state at the

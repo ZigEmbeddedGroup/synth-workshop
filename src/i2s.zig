@@ -61,9 +61,9 @@ pub fn I2S(comptime args: struct {
         const Self = @This();
         pub const Options = struct {
             clock_config: clocks.GlobalConfiguration,
-            clk_pin: gpio.Gpio,
-            word_select_pin: gpio.Gpio,
-            data_pin: gpio.Gpio,
+            clk_pin: gpio.Pin,
+            word_select_pin: gpio.Pin,
+            data_pin: gpio.Pin,
         };
 
         pub fn init(pio: rp2040.pio.Pio, comptime options: Options) @This() {
@@ -91,6 +91,7 @@ pub fn I2S(comptime args: struct {
                     .autopull = true,
                     .pull_threshold = @truncate(u5, sample_width),
                     .join_tx = true,
+                    .out_shiftdir = .left,
                 },
                 .pin_mappings = .{
                     .set = .{
