@@ -1,0 +1,21 @@
+= SYCL 2023 Embedded Zig Workshop
+
+== Prerequisites
+
+- https://git-scm.com/downloads[Git]
+- https://developer.arm.com/downloads/-/gnu-rm[Arm GNU Toolchain (for GDB)]
+- Some sort of programming environment
+
+You can use whatever IDE you like, I personally use neovim and the terminal. If you are unfamiliar with setting up your own programming environment, https://code.visualstudio.com/download[install VSCode].
+
+== Installing Zig
+
+Your laptop will fit under one of these platform strings:
+
+- x86_64-linux
+- x86_64-macos
+- x86_64-windows
+- aarch64-linux
+- aarch64-macos
+
+Open a command prompt/terminal run the command `./tools/zigup/<platform>/zigup master`, on windows it will be `zigup.exe`. This will install the zig compiler on your machine.
