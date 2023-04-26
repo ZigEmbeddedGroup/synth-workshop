@@ -11,11 +11,13 @@ a|
 - GPIO Output
 - Breadboarding
 - UF2
+|
 
 | uart
 a|
 - UART
 - Debugger
+|
 
 | single_tone
 a|
