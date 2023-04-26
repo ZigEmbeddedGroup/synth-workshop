@@ -1,0 +1,29 @@
+= Concepts Rubric
+
+This is just a table of the different concepts introduced in each excercise.
+
+[frame=ends, cols="1,1,1"]
+|===
+| Excercize | Embedded Concepts | Synth Concepts
+
+| blinky
+a |
+  - GPIO Output
+  - Breadboarding
+  - UF2
+
+| uart
+a |
+  - UART
+  - Debugger
+
+| single_tone
+a |
+  - I2S
+  - GPIO Input
+  - Button Debouncing
+a |
+  - Sample Rate
+  - Oscillator abstraction
+
+|===

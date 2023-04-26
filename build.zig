@@ -6,9 +6,9 @@ const rp2040 = @import("deps/raspberrypi-rp2040/build.zig");
 const uf2 = @import("deps/uf2/src/main.zig");
 
 const demos: []const []const u8 = &.{
-    "demos/blinky.zig",
-    "demos/uart.zig",
-    "demos/single_tone.zig",
+    "demos/00_blinky/blinky.zig",
+    "demos/01_uart/uart.zig",
+    "demos/02_single_tone/single_tone.zig",
 };
 
 pub fn build(b: *Builder) void {
