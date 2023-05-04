@@ -6,9 +6,17 @@ const rp2040 = @import("deps/raspberrypi-rp2040/build.zig");
 const uf2 = @import("deps/uf2/src/main.zig");
 
 const demos: []const []const u8 = &.{
-    "demos/00_blinky/blinky.zig",
-    "demos/01_uart/uart.zig",
-    "demos/02_single_tone/single_tone.zig",
+    "demos/00_blinky/main.zig",
+    "demos/01_uart/main.zig",
+    "demos/02_single_tone/main.zig",
+    "demos/03_volume_knob/main.zig",
+    "demos/04_changing_pitch/main.zig",
+    "demos/05_monophonic_keypad/main.zig",
+    "demos/06_adsr/main.zig",
+    "demos/07_waves/main.zig",
+    "demos/08_amplitude_modulation/main.zig",
+    "demos/09_frequency_modulation/main.zig",
+    "demos/10_polyphonic_keypad/main.zig",
 };
 
 pub fn build(b: *Builder) void {
@@ -21,7 +29,7 @@ pub fn build(b: *Builder) void {
             },
         });
         const exe = rp2040.addPiPicoExecutable(b, .{
-            .name = std.mem.trim(u8, std.fs.path.basename(demo_path), ".zig"),
+            .name = std.fs.path.basename(std.fs.path.dirname(demo_path).?),
             .source_file = .{
                 .path = demo_path,
             },

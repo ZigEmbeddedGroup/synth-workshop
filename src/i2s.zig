@@ -8,9 +8,8 @@ const rp2040 = microzig.hal;
 const clocks = rp2040.clocks;
 const gpio = rp2040.gpio;
 
-pub fn I2S(comptime args: struct {
+pub fn I2S(comptime Sample: type, comptime args: struct {
     sample_rate: u32,
-    sample_type: type,
 }) type {
     switch (args.sample_rate) {
         8_000,
@@ -25,12 +24,12 @@ pub fn I2S(comptime args: struct {
     }
 
     // TODO: signed?
-    switch (args.sample_type) {
-        u16, u24, u32 => {},
-        else => @compileError("sample_type must be u16, u24, or u32"),
+    switch (Sample) {
+        i16, i24, i32 => {},
+        else => @compileError("sample_type must be i16, i24, or i32"),
     }
 
-    const sample_width = @bitSizeOf(args.sample_type);
+    const sample_width = @bitSizeOf(Sample);
     const output = comptime rp2040.pio.assemble(std.fmt.comptimePrint(
         \\.program i2s
         \\.side_set 2
@@ -59,28 +58,28 @@ pub fn I2S(comptime args: struct {
         sm: rp2040.pio.StateMachine,
 
         const Self = @This();
-        pub const Options = struct {
+        pub const InitOptions = struct {
             clock_config: clocks.GlobalConfiguration,
             clk_pin: gpio.Pin,
             word_select_pin: gpio.Pin,
             data_pin: gpio.Pin,
         };
 
-        pub fn init(pio: rp2040.pio.Pio, comptime options: Options) @This() {
-            if (@enumToInt(options.word_select_pin) != @enumToInt(options.clk_pin) + 1)
+        pub fn init(pio: rp2040.pio.Pio, comptime opts: InitOptions) @This() {
+            if (@enumToInt(opts.word_select_pin) != @enumToInt(opts.clk_pin) + 1)
                 @panic("word select pin must be clk pin + 1");
 
-            if (@enumToInt(options.data_pin) != @enumToInt(options.word_select_pin) + 1)
+            if (@enumToInt(opts.data_pin) != @enumToInt(opts.word_select_pin) + 1)
                 @panic("word select pin must be word_select pin + 1");
 
-            pio.gpio_init(options.data_pin);
-            pio.gpio_init(options.clk_pin);
-            pio.gpio_init(options.word_select_pin);
+            pio.gpio_init(opts.data_pin);
+            pio.gpio_init(opts.clk_pin);
+            pio.gpio_init(opts.word_select_pin);
 
             const sm = pio.claim_unused_state_machine() catch unreachable;
             pio.sm_load_and_start_program(sm, i2s_program, .{
                 .clkdiv = comptime rp2040.pio.ClkDivOptions.from_float(div: {
-                    const sys_clk_freq = @intToFloat(f32, options.clock_config.sys.?.output_freq);
+                    const sys_clk_freq = @intToFloat(f32, opts.clock_config.sys.?.output_freq);
                     const i2s_clk_freq = @intToFloat(f32, args.sample_rate * sample_width * 2);
 
                     // TODO: 2 or 4 PIO clocks generate one I2S clock cycle
@@ -95,15 +94,15 @@ pub fn I2S(comptime args: struct {
                 },
                 .pin_mappings = .{
                     .set = .{
-                        .base = @enumToInt(options.clk_pin),
+                        .base = @enumToInt(opts.clk_pin),
                         .count = 3,
                     },
                     .side_set = .{
-                        .base = @enumToInt(options.clk_pin),
+                        .base = @enumToInt(opts.clk_pin),
                         .count = 2,
                     },
                     .out = .{
-                        .base = @enumToInt(options.data_pin),
+                        .base = @enumToInt(opts.data_pin),
                         .count = 1,
                     },
                 },
@@ -122,20 +121,30 @@ pub fn I2S(comptime args: struct {
             return self.pio.sm_fifo_level(self.sm, .tx) <= 6;
         }
 
-        const sample_shift = 32 - sample_width;
-        pub const Sample = struct {
-            left: args.sample_type,
-            right: args.sample_type,
-        };
-
-        pub fn write(self: Self, sample: Sample) void {
-            self.pio.sm_write(self.sm, sample.left << sample_shift);
-            self.pio.sm_write(self.sm, sample.right << sample_shift);
+        fn sample_to_fifo_entry(sample: Sample) u32 {
+            const sample_shift = comptime 32 - sample_width;
+            return @intCast(u32, sample +% std.math.minInt(Sample)) << sample_shift;
         }
 
-        pub fn write_blocking(self: Self, sample: Sample) void {
-            self.pio.sm_blocking_write(self.sm, sample.left << sample_shift);
-            self.pio.sm_blocking_write(self.sm, sample.right << sample_shift);
+        pub fn write_mono(self: Self, sample: Sample) void {
+            const value = sample_to_fifo_entry(sample);
+            self.pio.sm_write(self.sm, value);
+            self.pio.sm_write(self.sm, value);
+        }
+
+        pub const StereoSample = struct {
+            left: Sample,
+            right: Sample,
+        };
+
+        pub fn write_stereo(self: Self, sample: StereoSample) void {
+            self.pio.sm_write(self.sm, sample_to_fifo_entry(sample.left));
+            self.pio.sm_write(self.sm, sample_to_fifo_entry(sample.right));
+        }
+
+        pub fn write_stereo_blocking(self: Self, sample: StereoSample) void {
+            self.pio.sm_blocking_write(self.sm, sample_to_fifo_entry(sample.left));
+            self.pio.sm_blocking_write(self.sm, sample_to_fifo_entry(sample.right));
         }
     };
 }
