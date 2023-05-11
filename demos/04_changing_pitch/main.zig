@@ -26,6 +26,9 @@ pub fn main() !void {
     // lfg
     cpu.enable_interrupts();
     while (true) {
+        // TODO: process input, emit increment/decrement events
+        // TODO: latch the button for on/off, teach them about button bouncing
+        // don't add ADC code
         if (i2s.is_writable()) {
             var sample: Sample = 0;
 

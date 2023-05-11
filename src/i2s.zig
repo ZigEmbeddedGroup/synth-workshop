@@ -121,9 +121,14 @@ pub fn I2S(comptime Sample: type, comptime args: struct {
             return self.pio.sm_fifo_level(self.sm, .tx) <= 6;
         }
 
+        const UnsignedSample = std.meta.Int(.unsigned, @bitSizeOf(Sample));
         fn sample_to_fifo_entry(sample: Sample) u32 {
             const sample_shift = comptime 32 - sample_width;
-            return @intCast(u32, sample +% std.math.minInt(Sample)) << sample_shift;
+            return @intCast(
+                u32,
+                @bitCast(UnsignedSample, sample +% std.math.minInt(Sample)),
+                //@bitCast(UnsignedSample, sample),
+            ) << sample_shift;
         }
 
         pub fn write_mono(self: Self, sample: Sample) void {

@@ -14,6 +14,28 @@ const sample_rate = 96_000;
 const Sample = i16;
 
 const I2S = workshop.I2S(Sample, .{ .sample_rate = sample_rate });
+const Keypad = workshop.Keypad(.{
+    .row_pins = .{ 20, 21, 22, 26 },
+    .col_pins = .{ 16, 17, 18, 19 },
+    .period_us = 2000,
+});
+
+const frequency_table: [16]u32 = blk: {
+    //const scale_freqs = workshop.notes.calc_full_octave(workshop.notes.Octave.num(4));
+    // TODO: I screwed up note calcs
+    const scale_freqs =
+        workshop.notes.calc_major_scale(.C, workshop.notes.Octave.num(3)) ++
+        workshop.notes.calc_major_scale(.C, workshop.notes.Octave.num(4));
+
+    var result: [16]u32 = undefined;
+    inline for (scale_freqs, 0..) |float, i|
+        result[i] = workshop.update_count_from_float(sample_rate, float);
+
+    for (scale_freqs.len..result.len) |i|
+        result[i] = 0;
+
+    break :blk result;
+};
 
 pub fn main() !void {
     const i2s = I2S.init(.pio0, .{
@@ -23,14 +45,22 @@ pub fn main() !void {
         .data_pin = gpio.num(4),
     });
 
-    // lfg
-    cpu.enable_interrupts();
+    var keypad = Keypad.init();
+    var osc = Oscillator(sample_rate).init(0);
+
     while (true) {
         if (i2s.is_writable()) {
-            var sample: Sample = 0;
+            osc.tick();
 
-            // let's not make things louder than they need to be
-            sample >>= 4;
+            keypad.tick();
+            const sample: i16 = if (keypad.get_pressed()) |button| blk: {
+                osc.update_count = frequency_table[@enumToInt(button)];
+                break :blk if (osc.update_count != 0)
+                    osc.to_sawtooth(Sample)
+                else
+                    0;
+            } else 0;
+
             i2s.write_mono(sample);
         }
     }

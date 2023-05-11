@@ -1,3 +1,11 @@
+//! A single adc sample takes 96 clock cycles of the ADC clock, which
+//! is 48MHz.
+//!
+//! 96 * (1 / 48MHz) = 2us
+//!
+//! With a sample rate of 96KHz, we have to provide a sample every
+//! 10.4us. If we sat around and waited for the ADC to take a sample,
+//! we're wasting almost 20% of our time budget!
 const std = @import("std");
 const microzig = @import("microzig");
 const cpu = microzig.cpu;
@@ -19,11 +27,23 @@ const button = gpio.num(9);
 const pot = adc.num(2);
 const I2S = workshop.I2S(Sample, .{ .sample_rate = sample_rate });
 
+fn apply_volume(sample: Sample, volume: u12) i16 {
+    const result = @as(i32, sample) * volume;
+    return @intCast(i16, result >> 12);
+}
+
 pub fn main() !void {
     // see blinky for an explanation here:
     button.set_function(.sio);
     button.set_direction(.in);
     button.set_pull(.down);
+
+    pot.init();
+    adc.init();
+    adc.select_input(pot);
+    adc.start_single_conversion();
+
+    // TODO: set up repeated samples, just read off the fifo
 
     const i2s = I2S.init(.pio0, .{
         .clock_config = rp2040.clock_config,
@@ -33,16 +53,23 @@ pub fn main() !void {
     });
 
     var osc = Oscillator(sample_rate).init(440);
+    var volume: u12 = 0;
 
     // lfg
-    cpu.enable_interrupts();
     while (true) {
+        if (adc.is_ready()) {
+            volume = adc.read_result();
+            adc.start_single_conversion();
+        }
+
         if (i2s.is_writable()) {
-            var sample: Sample = 0;
+            const sample: Sample = if (button.read() == 1)
+                @intCast(Sample, osc.angle >> 32 - @bitSizeOf(Sample))
+            else
+                0;
 
             // let's not make things louder than they need to be
-            sample >>= 4;
-            i2s.write_mono(sample);
+            i2s.write_mono(apply_volume(sample, volume));
         }
     }
 }

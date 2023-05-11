@@ -5,33 +5,39 @@ const Builder = std.build.Builder;
 const rp2040 = @import("deps/raspberrypi-rp2040/build.zig");
 const uf2 = @import("deps/uf2/src/main.zig");
 
-const demos: []const []const u8 = &.{
-    "demos/00_blinky/main.zig",
-    "demos/01_uart/main.zig",
-    "demos/02_single_tone/main.zig",
-    "demos/03_volume_knob/main.zig",
-    "demos/04_changing_pitch/main.zig",
-    "demos/05_monophonic_keypad/main.zig",
-    "demos/06_adsr/main.zig",
-    "demos/07_waves/main.zig",
-    "demos/08_amplitude_modulation/main.zig",
-    "demos/09_frequency_modulation/main.zig",
-    "demos/10_polyphonic_keypad/main.zig",
+const Demo = struct {
+    name: []const u8,
+    path: []const u8,
+};
+
+const demos: []const Demo = &.{
+    // zig fmt: off
+    .{ .name = "blinky",               .path = "demos/00_blinky/main.zig" },
+    .{ .name = "uart",                 .path = "demos/01_uart/main.zig" },
+    .{ .name = "single_tone",          .path = "demos/02_single_tone/main.zig" },
+    .{ .name = "volume_knob",          .path = "demos/03_volume_knob/main.zig" },
+    .{ .name = "changing_pitch",       .path = "demos/04_changing_pitch/main.zig" },
+    .{ .name = "monophonic_keypad",    .path = "demos/05_monophonic_keypad/main.zig" },
+    .{ .name = "adsr",                 .path = "demos/06_adsr/main.zig" },
+    .{ .name = "waves",                .path = "demos/07_waves/main.zig" },
+    .{ .name = "amplitude_modulation", .path = "demos/08_amplitude_modulation/main.zig" },
+    .{ .name = "frequency_modulation", .path = "demos/09_frequency_modulation/main.zig" },
+    .{ .name = "polyphonic_keypad",    .path = "demos/10_polyphonic_keypad/main.zig" },
+    // zig fmt: on
 };
 
 pub fn build(b: *Builder) void {
     const optimize = b.standardOptimizeOption(.{});
-
-    for (demos) |demo_path| {
+    for (demos) |demo| {
         const workshop_module = b.createModule(.{
             .source_file = .{
                 .path = "src/workshop.zig",
             },
         });
         const exe = rp2040.addPiPicoExecutable(b, .{
-            .name = std.fs.path.basename(std.fs.path.dirname(demo_path).?),
+            .name = demo.name,
             .source_file = .{
-                .path = demo_path,
+                .path = demo.path,
             },
             .optimize = optimize,
         });
