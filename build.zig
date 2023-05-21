@@ -21,7 +21,6 @@ const demos: []const Demo = &.{
     .{ .name = "adsr",                           .path = "demos/06_adsr/main.zig" },
     .{ .name = "additive_synthesis",             .path = "demos/07_additive_synthesis/main.zig" },
     .{ .name = "frequency_modulation_synthesis", .path = "demos/08_frequency_modulation_synthesis/main.zig" },
-    .{ .name = "drums",                          .path = "demos/09_drums/main.zig" },
     // zig fmt: on
 };
 
