@@ -81,3 +81,43 @@ pub fn calc_full_octave(octave: Octave) [12]f32 {
 
     return result;
 }
+
+pub fn SoundProfile(comptime size: usize) type {
+    return struct {
+        levels: [size]f64,
+        freqs: [size]f64,
+
+        pub fn len(self: @This()) usize {
+            _ = self;
+            return size;
+        }
+    };
+}
+
+/// converts decibel units to magnitude
+pub fn db(decibel: f64) f64 {
+    return 20.0 * std.math.pow(f64, 10.0, decibel);
+}
+
+pub fn sound_profile_from_example(comptime example: []const struct {
+    freq: f64,
+    mag: f64,
+}) SoundProfile(example.len) {
+    var result: SoundProfile(example.len) = undefined;
+
+    const mag_sum = mag_sum: {
+        var sum: f64 = 0;
+        for (example) |e|
+            sum += e.mag;
+
+        break :mag_sum sum;
+    };
+
+    for (&result.levels, &result.freqs, example) |*l, *f, e| {
+        l.* = e.mag / mag_sum;
+        // frequency  ration wrt fundamental
+        f.* = e.freq / example[0].freq;
+    }
+
+    return result;
+}

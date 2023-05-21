@@ -12,17 +12,16 @@ const Demo = struct {
 
 const demos: []const Demo = &.{
     // zig fmt: off
-    .{ .name = "blinky",               .path = "demos/00_blinky/main.zig" },
-    .{ .name = "uart",                 .path = "demos/01_uart/main.zig" },
-    .{ .name = "single_tone",          .path = "demos/02_single_tone/main.zig" },
-    .{ .name = "volume_knob",          .path = "demos/03_volume_knob/main.zig" },
-    .{ .name = "changing_pitch",       .path = "demos/04_changing_pitch/main.zig" },
-    .{ .name = "monophonic_keypad",    .path = "demos/05_monophonic_keypad/main.zig" },
-    .{ .name = "adsr",                 .path = "demos/06_adsr/main.zig" },
-    .{ .name = "waves",                .path = "demos/07_waves/main.zig" },
-    .{ .name = "amplitude_modulation", .path = "demos/08_amplitude_modulation/main.zig" },
-    .{ .name = "frequency_modulation", .path = "demos/09_frequency_modulation/main.zig" },
-    .{ .name = "polyphonic_keypad",    .path = "demos/10_polyphonic_keypad/main.zig" },
+    .{ .name = "blinky",                         .path = "demos/00_blinky/main.zig" },
+    .{ .name = "uart",                           .path = "demos/01_uart/main.zig" },
+    .{ .name = "single_tone",                    .path = "demos/02_single_tone/main.zig" },
+    .{ .name = "volume_knob",                    .path = "demos/03_volume_knob/main.zig" },
+    .{ .name = "changing_pitch",                 .path = "demos/04_changing_pitch/main.zig" },
+    .{ .name = "monophonic_keypad",              .path = "demos/05_monophonic_keypad/main.zig" },
+    .{ .name = "adsr",                           .path = "demos/06_adsr/main.zig" },
+    .{ .name = "additive_synthesis",             .path = "demos/07_additive_synthesis/main.zig" },
+    .{ .name = "frequency_modulation_synthesis", .path = "demos/08_frequency_modulation_synthesis/main.zig" },
+    .{ .name = "drums",                          .path = "demos/09_drums/main.zig" },
     // zig fmt: on
 };
 

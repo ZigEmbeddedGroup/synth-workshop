@@ -50,8 +50,8 @@ pub fn main() !void {
             debug.put(0);
             defer debug.put(1);
             // assert that this branch never takes longer than a sample period
-            //const timeout = time.make_timeout_us(10);
-            //defer assert(!timeout.reached());
+            const timeout = time.make_timeout_us(10);
+            defer assert(!timeout.reached());
 
             osc.tick();
 
@@ -61,6 +61,9 @@ pub fn main() !void {
             // our generated wave.
             const sample: Sample = if (button.read() == 1)
                 osc.to_sawtooth(Sample)
+                // alternatively, try:
+                // osc.to_sine(Sample)
+                // osc.to_squarewave(Sample)
             else
                 0;
 

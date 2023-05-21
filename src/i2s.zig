@@ -126,8 +126,7 @@ pub fn I2S(comptime Sample: type, comptime args: struct {
             const sample_shift = comptime 32 - sample_width;
             return @intCast(
                 u32,
-                @bitCast(UnsignedSample, sample +% std.math.minInt(Sample)),
-                //@bitCast(UnsignedSample, sample),
+                @bitCast(UnsignedSample, sample),
             ) << sample_shift;
         }
 
