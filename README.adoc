@@ -1,4 +1,5 @@
 = SYCL 2023 Embedded Zig Workshop
+:toc:
 
 == Prerequisites
 
