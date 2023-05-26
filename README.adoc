@@ -3,10 +3,10 @@
 
 == Prerequisites
 
-- https://git-scm.com/downloads[Git]
-- https://developer.arm.com/downloads/-/gnu-rm[Arm GNU Toolchain (for GDB)]
-  - NOTE: for the windows installer, select the "add to path" option
-- Some sort of programming environment. If you are unsure, https://code.visualstudio.com/download[install VSCode]
+* https://git-scm.com/downloads[Git]
+* https://developer.arm.com/downloads/-/gnu-rm[Arm GNU Toolchain (for GDB)]
+** NOTE: for the windows installer, select the "add to path" option
+* Some sort of programming environment. If you are unsure, https://code.visualstudio.com/download[install VSCode]
 
 == Installing Zig
 
