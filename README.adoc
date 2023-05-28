@@ -7,17 +7,19 @@
 
 [cols="1,1,1"]
 |===
-| Name
-| Vendor
-| Part No
+| Name | Vendor | Part No
 
-| Breadboard
-| Digikey
-| <part no>
+| Breadboard | Digikey | <part no>
+| Raspberry Pi Pico | Digikey | <partn no>
 
-| Raspberry Pi Pico
-| Digikey
-| <partn no>
+| 4x4 Keypad
+| Adafruit
+| 3844
+
+| Speaker
+|
+|
+
 |===
 
 TODO: document what parts and where you can get them
