@@ -5,7 +5,7 @@
 
 == Parts Kit
 
-[cols="1,1"]
+[cols="1,1,1"]
 |===
 | Name
 | Vendor
@@ -33,11 +33,11 @@ TODO: document what parts and where you can get them
 
 Your laptop will fit under one of these platform strings:
 
-- x86_64-linux
-- x86_64-macos
-- x86_64-windows
-- aarch64-linux
-- aarch64-macos
+* x86_64-linux
+* x86_64-macos
+* x86_64-windows
+* aarch64-linux
+* aarch64-macos
 
 Open a command prompt/terminal run the command `./tools/zigup/<platform>/zigup master`, on windows it will be `zigup.exe`. This will install the zig compiler on your machine.
 
