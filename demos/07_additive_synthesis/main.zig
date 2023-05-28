@@ -31,7 +31,9 @@ const Keypad = workshop.Keypad(.{
 
 const sound_profile = notes.sound_profile_from_example(&.{
     .{ .freq = 440.0, .mag = 1.0 },
-    //.{ .freq = 880.0, .mag = 1.0 },
+    .{ .freq = 880.0, .mag = 0.5 },
+    .{ .freq = 2.0 * 880.0, .mag = 0.25 },
+    .{ .freq = 4.0 * 880.0, .mag = 0.125 },
     //.{ .freq = 701.0, .mag = notes.db(-21.6) },
     //.{ .freq = 925.0, .mag = notes.db(-67.3) },
     //.{ .freq = 2092.0, .mag = notes.db(-46.0) },
@@ -48,7 +50,7 @@ const frequency_table: [16][sound_profile.len()]u32 = blk: {
     for (result[0..12], scale_freqs[2..14]) |*row, fundamental_freq| {
         for (row, sound_profile.freqs) |*col, relative_freq| {
             const overtone_freq = fundamental_freq * relative_freq;
-            col.* = workshop.update_count_from_float(sample_rate, overtone_freq);
+            col.* = workshop.phase_delta_from_float(sample_rate, overtone_freq);
         }
     }
 
@@ -56,12 +58,18 @@ const frequency_table: [16][sound_profile.len()]u32 = blk: {
     for (result[13..], scale_freqs[14 .. 14 + 3]) |*row, fundamental_freq| {
         for (row, sound_profile.freqs) |*col, relative_freq| {
             const overtone_freq = fundamental_freq * relative_freq;
-            col.* = workshop.update_count_from_float(sample_rate, overtone_freq);
+            col.* = workshop.phase_delta_from_float(sample_rate, overtone_freq);
         }
     }
 
     break :blk result;
 };
+
+pub fn panic(message: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
+    std.log.err("panic: {s}", .{message});
+    @breakpoint();
+    while (true) {}
+}
 
 pub fn main() !void {
     const i2s = I2S.init(.pio0, .{
@@ -78,40 +86,37 @@ pub fn main() !void {
 
     var keypad = Keypad.init();
     var volume: u12 = 0;
-    var osc_bank = [_]Oscillator{Oscillator.init(0)} ** sound_profile.len();
-
+    var vco_bank = [_]Oscillator{Oscillator.init(0)} ** sound_profile.len();
     var adsr = AdsrEnvelopeGenerator.init(.{
-        .attack = time.Duration.from_ms(0),
-        .decay = time.Duration.from_ms(0),
-        .sustain = 0x7fff,
-        .release = time.Duration.from_ms(10),
+        .attack = time.Duration.from_ms(100),
+        .decay = time.Duration.from_ms(100),
+        .sustain = 0x1fff,
+        .release = time.Duration.from_ms(1000),
     });
 
     while (true) {
-        if (i2s.is_writable()) {
-            volume = adc.read_result() catch volume;
+        if (!i2s.is_writable())
+            continue;
 
-            keypad.tick();
-            if (keypad.get_event()) |event| {
-                for (&osc_bank, 0..) |*osc, i|
-                    osc.update_count = frequency_table[@enumToInt(event.button)][i];
-
-                adsr.button = .{
-                    .timestamp = event.timestamp,
-                    .state = event.kind,
-                };
-            }
-
-            for (&osc_bank) |*osc|
-                osc.tick();
-
-            const osc_output = mix(Sample, &sound_profile.levels, .{
-                osc_bank[0].to_sine(Sample),
-                //osc_bank[1].to_sine(Sample),
-            });
-            const sample = adsr.apply_envelope(osc_output);
-
-            i2s.write_mono(apply_volume(sample, volume));
+        keypad.tick();
+        if (keypad.get_event()) |event| {
+            adsr.feed_event(event);
+            for (&vco_bank, 0..) |*vco, i|
+                vco.delta = frequency_table[@enumToInt(event.button)][i];
         }
+
+        for (&vco_bank) |*vco| vco.tick();
+        const vco_output = mix(Sample, &sound_profile.levels, .{
+            vco_bank[0].to_sine(Sample),
+            vco_bank[1].to_sine(Sample),
+            vco_bank[2].to_sine(Sample),
+            vco_bank[3].to_sine(Sample),
+        });
+
+        adsr.tick();
+        const sample = adsr.apply_envelope(vco_output);
+
+        volume = adc.read_result() catch volume;
+        i2s.write_mono(apply_volume(sample, volume));
     }
 }

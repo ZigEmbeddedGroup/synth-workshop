@@ -36,11 +36,11 @@ const frequency_table: [16]u32 = blk: {
 
     var result: [16]u32 = undefined;
     for (result[0..12], scale_freqs[2..14]) |*r, freq|
-        r.* = workshop.update_count_from_float(sample_rate, freq);
+        r.* = workshop.phase_delta_from_float(sample_rate, freq);
 
     result[12] = 0;
     for (result[13..], scale_freqs[14 .. 14 + 3]) |*r, freq|
-        r.* = workshop.update_count_from_float(sample_rate, freq);
+        r.* = workshop.phase_delta_from_float(sample_rate, freq);
 
     break :blk result;
 };
@@ -61,7 +61,6 @@ pub fn main() !void {
     var keypad = Keypad.init();
     var osc = Oscillator(sample_rate).init(0);
     var volume: u12 = 0;
-
     var adsr = AdsrEnvelopeGenerator.init(.{
         .attack = time.Duration.from_ms(0),
         .decay = time.Duration.from_ms(250),
@@ -70,23 +69,23 @@ pub fn main() !void {
     });
 
     while (true) {
-        if (i2s.is_writable()) {
-            volume = adc.read_result() catch volume;
+        if (!i2s.is_writable())
+            continue;
 
-            keypad.tick();
-            if (keypad.get_event()) |event| {
-                osc.update_count = frequency_table[@enumToInt(event.button)];
-                adsr.button = .{
-                    .timestamp = event.timestamp,
-                    .state = event.kind,
-                };
-            }
-
-            osc.tick();
-            const osc_output = osc.to_sawtooth(Sample);
-            const sample = adsr.apply_envelope(osc_output);
-
-            i2s.write_mono(apply_volume(sample, volume));
+        keypad.tick();
+        if (keypad.get_event()) |event| {
+            adsr.feed_event(event);
+            osc.delta = frequency_table[@enumToInt(event.button)];
         }
+
+        osc.tick();
+        const osc_output = osc.to_sawtooth(Sample);
+
+        adsr.tick();
+        const sample = adsr.apply_envelope(osc_output);
+
+        volume = std.math.maxInt(u12) / 2;
+        //adc.read_result() catch volume;
+        i2s.write_mono(apply_volume(sample, volume));
     }
 }

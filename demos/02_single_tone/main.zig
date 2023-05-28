@@ -21,18 +21,12 @@ const Sample = i16;
 
 // hardware blocks
 const button = gpio.num(9);
-const debug = gpio.num(5);
 const I2S = workshop.I2S(Sample, .{ .sample_rate = sample_rate });
 
 pub fn main() !void {
-    // see blinky for an explanation here:
     button.set_function(.sio);
     button.set_direction(.in);
     button.set_pull(.down);
-
-    debug.set_function(.sio);
-    debug.set_direction(.out);
-    debug.put(1);
 
     const i2s = I2S.init(.pio0, .{
         .clock_config = rp2040.clock_config,
@@ -41,35 +35,36 @@ pub fn main() !void {
         .data_pin = gpio.num(4),
     });
 
-    var osc = Oscillator(sample_rate).init(440);
+    var vco: Oscillator(sample_rate) = .{};
 
-    // lfg
     while (true) {
-        // The highest priority task we have is to generate a sample every sample period. If we fail to do this then the
-        if (i2s.is_writable()) {
-            debug.put(0);
-            defer debug.put(1);
-            // assert that this branch never takes longer than a sample period
-            const timeout = time.make_timeout_us(10);
-            defer assert(!timeout.reached());
+        // The highest priority task we have is to generate a sample every
+        // sample period. If we fail to do this then we'll hear garbled or no
+        // sound
+        if (!i2s.is_writable())
+            continue;
 
-            osc.tick();
+        // assert that this branch never takes longer than a sample period
+        const timeout = time.make_timeout_us(10);
+        defer assert(!timeout.is_reached());
 
-            // our sample size is 16 bits, and it just so happens that the
-            // maximum value of the oscillator corresponds to 2π radians. We
-            // get a sawtooth waveform if we use the angle as the magnitude of
-            // our generated wave.
-            const sample: Sample = if (button.read() == 1)
-                osc.to_sawtooth(Sample)
-                // alternatively, try:
-                // osc.to_sine(Sample)
-                // osc.to_squarewave(Sample)
-            else
-                0;
+        vco.tick();
 
-            // The amplifier takes a left and right input as part of the I2S
-            // standard and averages both channels to the single speaker.
-            i2s.write_mono(sample);
-        }
+        // our sample size is 16 bits, and it just so happens that the
+        // maximum value of the oscillator corresponds to 2π radians. We
+        // get a sawtooth waveform if we use the angle as the magnitude of
+        // our generated wave.
+        const sample: Sample = if (button.read() == 1)
+            vco.to_sine(Sample)
+            // alternatively, try:
+            // vco.to_sawtooth(Sample)
+            // vco.to_squarewave(Sample)
+            // vco.to_triangle(Sample)
+        else
+            0;
+
+        // The amplifier takes a left and right input as part of the I2S
+        // standard and averages both channels to the single speaker.
+        i2s.write_mono(sample);
     }
 }

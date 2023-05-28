@@ -137,12 +137,17 @@ pub fn Volatile(comptime T: type) type {
     };
 }
 
-pub fn update_count_from_float(sample_rate: u32, frequency: f64) u32 {
+pub fn phase_delta_from_float(sample_rate: u32, frequency: f64) u32 {
     return @floatToInt(
         u32,
         frequency / @intToFloat(f64, sample_rate) * std.math.pow(f64, 2, 32),
     );
 }
+
+pub const FrequencyRatio = packed struct(u16) {
+    int: u8,
+    frac: u8 = 0,
+};
 
 /// The oscillator takes advantage of integer overflow to represent radians as
 /// you rotate about a circle. It assumes 32-bit architecture so that maximum
@@ -153,38 +158,51 @@ pub fn update_count_from_float(sample_rate: u32, frequency: f64) u32 {
 /// TODO: remove comptime param
 pub fn Oscillator(comptime sample_rate: u32) type {
     return struct {
-        angle: u32,
-        update_count: u32,
+        phase: u32 = 0,
+        delta: u32 = 0,
 
         const Self = @This();
 
         pub fn init(frequency: u32) Self {
             return Self{
-                .angle = 0,
-                .update_count = calculate_update_count(frequency),
+                .phase = 0,
+                .delta = calculate_delta(frequency),
             };
         }
 
         pub fn reset(self: *Self) void {
-            self.angle = 0;
-            self.update_count = 0;
+            self.phase = 0;
+            self.delta = 0;
         }
 
-        fn calculate_update_count(frequency: u32) u32 {
+        fn calculate_delta(frequency: u32) u32 {
             return @intCast(u32, (@as(u64, 0x100000000) * frequency) / sample_rate);
         }
 
         pub fn tick(self: *Self) void {
-            self.angle +%= self.update_count;
+            self.phase +%= self.delta;
+        }
+
+        pub fn tick_modulate(self: *Self, comptime T: type, input: T, ratio: FrequencyRatio) void {
+            comptime assert(std.meta.trait.isSignedInt(T));
+            // TODO: calculate Accumulator
+            const base = @intCast(i64, self.delta) * input;
+            const mod_delta = ((base * ratio.int) >> @bitSizeOf(T)) +
+                ((base * ratio.frac) >> (@bitSizeOf(T) + 8));
+            // TODO: will have truncated bits I think
+            if (mod_delta < 0)
+                self.phase -%= @intCast(u32, -mod_delta)
+            else
+                self.phase +%= @intCast(u32, mod_delta);
         }
 
         pub fn set_frequency(self: *Self, frequency: u32) void {
-            self.update_count = calculate_update_count(frequency);
+            self.delta = calculate_delta(frequency);
         }
 
         /// at compile time,
         pub fn set_frequency_float(self: *Self, comptime frequency: f32) void {
-            self.update_count = comptime update_count_from_float(frequency);
+            self.delta = comptime phase_delta_from_float(sample_rate, frequency);
         }
 
         pub fn to_sawtooth(self: Self, comptime T: type) T {
@@ -193,15 +211,15 @@ pub fn Oscillator(comptime sample_rate: u32) type {
             const UnsignedSample = std.meta.Int(.unsigned, @bitSizeOf(T));
             return @bitCast(T, @truncate(
                 UnsignedSample,
-                self.angle >> 32 - @bitSizeOf(T),
+                self.phase >> 32 - @bitSizeOf(T),
             ));
         }
 
-        pub fn to_squarewave(self: Self, comptime T: type) T {
+        pub fn to_square(self: Self, comptime T: type) T {
             comptime assert(std.meta.trait.isSignedInt(T));
 
-            return if (self.update_count != 0)
-                if (self.angle > (std.math.maxInt(u32) / 2))
+            return if (self.delta != 0)
+                if (self.phase > (std.math.maxInt(u32) / 2))
                     std.math.maxInt(T)
                 else
                     std.math.minInt(T)
@@ -228,7 +246,7 @@ pub fn Oscillator(comptime sample_rate: u32) type {
             const LutIndex = std.meta.Int(.unsigned, lut_bits);
             const x_span = comptime 1 << (32 - lut_bits);
 
-            const y0_index: LutIndex = @intCast(LutIndex, self.angle >> @as(u5, 32 - lut_bits));
+            const y0_index: LutIndex = @intCast(LutIndex, self.phase >> @as(u5, 32 - lut_bits));
             const y1_index = y0_index +% 1;
 
             const y0 = lut[y0_index];
@@ -238,7 +256,7 @@ pub fn Oscillator(comptime sample_rate: u32) type {
 
             const y_span = y1 - y0;
 
-            const x_delta = @intCast(i32, self.angle - x0);
+            const x_delta = @intCast(i32, self.phase - x0);
             // TODO: fix overflow here
             const y = y0 + @divFloor(std.math.mulWide(i32, x_delta, y_span), x_span);
 
@@ -278,52 +296,6 @@ pub const Button = enum(u4) {
         return @intToEnum(Button, @bitCast(u4, coord));
     }
 };
-
-pub fn CircularDoubleBuffer(comptime T: type, comptime size: usize) type {
-    return struct {
-        start: usize,
-        len: usize,
-        buffer: [2 * size]T,
-
-        const Self = @This();
-
-        pub fn init() Self {
-            return Self{
-                .start = 0,
-                .len = 0,
-                .items = undefined,
-            };
-        }
-
-        pub fn const_slice(self: *const Self) []const T {
-            return self.buffer[self.start..self.len];
-        }
-
-        pub fn append(self: *Self, item: T) !void {
-            if (self.len >= size)
-                return error.NoSpace;
-
-            self.buffer[self.start + self.len] = item;
-            self.buffer[(self.start + self.len + size) % self.buffer.len] = item;
-            self.len += 1;
-        }
-
-        pub fn pop(self: *Self) ?T {
-            return if (self.len > 0) blk: {
-                defer {
-                    if (self.start == size - 1)
-                        self.start = 0
-                    else
-                        self.start += 1;
-
-                    self.len -= 1;
-                }
-
-                break :blk self.buffer[self.start];
-            } else null;
-        }
-    };
-}
 
 pub const ButtonState = enum(u1) {
     pressed,
@@ -395,47 +367,48 @@ pub fn Keypad(comptime options: struct {
         }
 
         pub fn tick(self: *Self) void {
-            if (self.deadline.reached()) {
-                const result = cols.read();
-                for (options.col_pins, 0..) |pin, col| {
-                    const button = Button.from_coord(.{
-                        .row = self.row,
-                        .col = @intCast(u2, col),
-                    });
+            if (!self.deadline.is_reached())
+                return;
 
-                    // detect that state has changed
-                    const prev = self.pressed[@enumToInt(button)];
-                    const curr = (0 != result & (@as(u32, 1) << pin));
+            const result = cols.read();
+            for (options.col_pins, 0..) |pin, col| {
+                const button = Button.from_coord(.{
+                    .row = self.row,
+                    .col = @intCast(u2, col),
+                });
 
-                    // no state change detected, continue to the next button in
-                    // the row
-                    if (prev == curr)
-                        continue;
+                // detect that state has changed
+                const prev = self.pressed[@enumToInt(button)];
+                const curr = (0 != result & (@as(u32, 1) << pin));
 
-                    if (curr) { // pressed
-                        if (self.last_released) |released_button| {
-                            if (button == released_button)
-                                self.last_released = null;
-                        }
+                // no state change detected, continue to the next button in
+                // the row
+                if (prev == curr)
+                    continue;
 
-                        self.order.append(button) catch unreachable;
-                        self.pressed[@enumToInt(button)] = true;
-                    } else { // released
-                        const index = std.mem.indexOfScalar(Button, self.order.slice(), button).?;
-                        _ = self.order.orderedRemove(index);
-                        self.last_released = button;
-                        self.pressed[@enumToInt(button)] = false;
+                if (curr) { // pressed
+                    if (self.last_released) |released_button| {
+                        if (button == released_button)
+                            self.last_released = null;
                     }
 
-                    // update timestamp to last state update
-                    self.timestamps[@enumToInt(button)] = time.get_time_since_boot();
-                    self.state_changed = true;
+                    self.order.append(button) catch unreachable;
+                    self.pressed[@enumToInt(button)] = true;
+                } else { // released
+                    const index = std.mem.indexOfScalar(Button, self.order.slice(), button).?;
+                    _ = self.order.orderedRemove(index);
+                    self.last_released = button;
+                    self.pressed[@enumToInt(button)] = false;
                 }
 
-                self.row +%= 1;
-                rows.put(@as(u32, 1) << options.row_pins[self.row]);
-                self.deadline = time.make_timeout_us(options.period_us / 4);
+                // update timestamp to last state update
+                self.timestamps[@enumToInt(button)] = time.get_time_since_boot();
+                self.state_changed = true;
             }
+
+            self.row +%= 1;
+            rows.put(@as(u32, 1) << options.row_pins[self.row]);
+            self.deadline = time.make_timeout_us(options.period_us / 4);
         }
 
         pub fn get_event(self: *Self) ?KeypadEvent {
@@ -485,8 +458,10 @@ pub fn mix(
             fw.* = scale * level;
 
         var fixed_weights: [levels.len]T = undefined;
-        for (float_weights, 0..) |float, i|
+        for (float_weights, 0..) |float, i| {
             fixed_weights[i] = @floatToInt(T, std.math.round(@intToFloat(f64, std.math.maxInt(T)) * float));
+            assert(fixed_weights[i] != 0); // float weight was so small it doesn't fit
+        }
 
         const sum = blk: {
             var ret: T = 0;
@@ -512,20 +487,44 @@ pub fn mix(
     for (inputs, weights) |input, weight|
         tmp += std.math.mulWide(T, input, weight);
 
-    return @intCast(T, tmp >> (acc_bits - @bitSizeOf(T)));
+    return @intCast(T, tmp >> (acc_bits - (@bitSizeOf(T) + levels.len)));
 }
 
 pub fn AdsrEnvelopeGenerator(comptime T: type) type {
     assert(std.meta.trait.isSignedInt(T));
     return struct {
         profile: Profile,
-        button: ?struct {
-            timestamp: time.Absolute,
-            state: ButtonState,
-        },
+        envelope: Envelope,
+        state: State,
 
         const Self = @This();
         const Envelope = std.meta.Int(.unsigned, @bitSizeOf(T) - 1);
+        const envelope_max = std.math.maxInt(Envelope);
+        const Interval = struct {
+            from: time.Absolute,
+            to: time.Absolute,
+        };
+        const State = union(enum) {
+            attack: struct {
+                start: time.Absolute,
+                attack_end: time.Absolute,
+                decay_end: time.Absolute,
+            },
+            decay: struct {
+                start: time.Absolute,
+                end: time.Absolute,
+            },
+            sustain: void,
+            release: struct {
+                start: struct {
+                    time: time.Absolute,
+                    value: Envelope,
+                },
+                end: time.Absolute,
+            },
+            off: void,
+        };
+
         pub const Profile = struct {
             attack: time.Duration,
             decay: time.Duration,
@@ -534,10 +533,124 @@ pub fn AdsrEnvelopeGenerator(comptime T: type) type {
         };
 
         pub fn init(profile: Profile) Self {
+            // TODO: remove
             return Self{
                 .profile = profile,
-                .button = null,
+                .state = .{ .off = {} },
+                .envelope = 0,
             };
+        }
+
+        /// Move machinery forward, this will transition state if it's time:
+        ///
+        /// - attack -> decay
+        /// - decay -> sustain
+        /// - release -> off
+        ///
+        /// It then calculates the envelope magnitude given the current state.
+        pub fn tick(self: *Self) void {
+
+            //==================================
+            // Update state
+            //==================================
+
+            const now = time.get_time_since_boot();
+            switch (self.state) {
+                .attack => |state| if (state.decay_end.is_reached_by(now)) {
+                    self.state = .{ .sustain = {} };
+                } else if (state.attack_end.is_reached_by(now)) {
+                    self.state = .{
+                        .decay = .{
+                            .start = state.attack_end,
+                            .end = state.attack_end.add_duration(self.profile.decay),
+                        },
+                    };
+                },
+                .decay => |state| if (state.end.is_reached_by(now)) {
+                    self.state = .{ .sustain = {} };
+                },
+                .release => |state| if (state.end.is_reached_by(now)) {
+                    self.state = .{ .off = {} };
+                },
+                .off, .sustain => {},
+            }
+
+            //==================================
+            // Envelope calculations
+            //==================================
+
+            self.envelope = switch (self.state) {
+                .attack => |state| envelope: {
+                    assert(!state.attack_end.is_reached_by(now));
+                    const delta = now.diff(state.start);
+                    break :envelope interpolate(
+                        delta,
+                        self.profile.attack,
+                        0,
+                        envelope_max,
+                    );
+                },
+                .decay => |state| envelope: {
+                    assert(!state.end.is_reached_by(now));
+                    const delta = now.diff(state.start);
+                    break :envelope interpolate(
+                        delta,
+                        self.profile.decay,
+                        envelope_max,
+                        self.profile.sustain,
+                    );
+                },
+                .sustain => self.profile.sustain,
+                // the last value of the envelope is used to interpolate
+                // because the key may have been released before transitioning
+                // to decay. If we don't take this into consideration, the
+                // envelop shoots up to max value when you release a key early.
+                .release => |state| envelope: {
+                    assert(!state.end.is_reached_by(now));
+                    const delta = now.diff(state.start.time);
+                    break :envelope interpolate(
+                        delta,
+                        self.profile.release,
+                        state.start.value,
+                        0,
+                    );
+                },
+                .off => 0,
+            };
+        }
+
+        /// A new sudden event has taken place and the state machine must be
+        /// updated accordingly.
+        pub fn feed_event(self: *Self, event: KeypadEvent) void {
+            const profile = self.profile;
+            const timestamp = event.timestamp;
+            self.state = switch (event.kind) {
+                .pressed => blk: {
+                    const attack_end = timestamp.add_duration(profile.attack);
+                    break :blk .{
+                        .attack = .{
+                            .start = event.timestamp,
+                            .attack_end = attack_end,
+                            .decay_end = attack_end.add_duration(profile.decay),
+                        },
+                    };
+                },
+                .released => .{
+                    .release = .{
+                        .start = .{
+                            .time = timestamp,
+                            .value = self.envelope,
+                        },
+                        .end = event.timestamp.add_duration(profile.release),
+                    },
+                },
+            };
+        }
+
+        pub fn apply_envelope(self: Self, raw_sample: T) T {
+            const wide = std.math.mulWide(T, raw_sample, self.envelope);
+            const shifted = wide >> @bitSizeOf(Envelope);
+            return @intCast(T, shifted);
         }
 
         // x0 is assummed to be 0
@@ -546,41 +659,110 @@ pub fn AdsrEnvelopeGenerator(comptime T: type) type {
             x1: time.Duration,
             y0: T,
             y1: T,
-        ) T {
+        ) Envelope {
             const y_span = y1 - y0;
             const x_delta = @intCast(i32, x.to_us());
             const x_span = @intCast(i32, x1.to_us());
+            assert(x_span >= x_delta);
             const y = y0 + @divFloor(std.math.mulWide(i32, x_delta, y_span), x_span);
-            return @intCast(T, y);
+            return @intCast(Envelope, y);
         }
 
-        pub fn apply_envelope(self: *Self, raw_sample: T) T {
-            return if (self.button) |button| sample: {
-                const attack = self.profile.attack;
-                const decay = self.profile.decay;
-                const sustain = self.profile.sustain;
-                const release = self.profile.release;
+        comptime {
+            @setEvalBranchQuota(10000);
+            const profile = Profile{
+                .attack = time.Duration.from_us(100),
+                .decay = time.Duration.from_us(200),
+                .sustain = 0x1fff,
+                .release = time.Duration.from_us(300),
+            };
 
-                const now = time.get_time_since_boot();
-                const delta = now.diff(button.timestamp);
-                const envelope = switch (button.state) {
-                    .pressed => if (delta.less_than(attack))
-                        interpolate(delta, attack, 0, std.math.maxInt(Envelope))
-                    else if (delta.less_than(attack.plus(decay)))
-                        interpolate(delta.minus(attack), decay, std.math.maxInt(Envelope), sustain)
-                    else
-                        self.profile.sustain,
+            var last: Envelope = 0;
+            for (0..profile.attack.to_us() + 1) |t| {
+                const envelope = interpolate(
+                    time.Duration.from_us(t),
+                    profile.attack,
+                    0,
+                    envelope_max,
+                );
 
-                    .released => if (delta.less_than(release))
-                        interpolate(delta, release, sustain, 0)
-                    else blk: {
-                        self.button = null;
-                        break :blk 0;
-                    },
-                };
+                assert(envelope >= 0);
+                assert(envelope <= envelope_max);
+                assert(last <= envelope);
+                last = envelope;
+            }
 
-                break :sample @intCast(T, std.math.mulWide(T, raw_sample, envelope) >> @bitSizeOf(Envelope));
-            } else 0;
+            last = envelope_max;
+            for (0..profile.decay.to_us() + 1) |t| {
+                const envelope = interpolate(
+                    time.Duration.from_us(t),
+                    profile.decay,
+                    envelope_max,
+                    profile.sustain,
+                );
+
+                assert(envelope <= envelope_max);
+                assert(envelope >= profile.sustain);
+                assert(envelope <= last);
+                last = envelope;
+            }
+        }
+    };
+}
+
+pub fn Operator(comptime Sample: type, comptime sample_rate: u32) type {
+    return struct {
+        vco: Oscillator(sample_rate),
+        adsr: AdsrEnvelopeGenerator(Sample),
+        feedback: u8,
+        input: Sample,
+        freq_ratio: FrequencyRatio,
+
+        const Self = @This();
+
+        pub const Event = struct {
+            keypad: KeypadEvent,
+            vco_delta: u32,
+        };
+
+        pub fn init(args: struct {
+            profile: AdsrEnvelopeGenerator(Sample).Profile,
+            freq_ratio: FrequencyRatio = .{ .int = 0, .frac = 0 },
+        }) Self {
+            return Self{
+                .vco = Oscillator(sample_rate).init(0),
+                .adsr = AdsrEnvelopeGenerator(Sample).init(args.profile),
+                .feedback = 0,
+                .input = 0,
+                .freq_ratio = args.freq_ratio,
+            };
+        }
+
+        pub fn tick(self: *Self) void {
+            self.vco.tick_modulate(Sample, self.input, self.freq_ratio);
+            self.vco.tick();
+            self.adsr.tick();
+        }
+
+        pub fn to_sine(self: Self) Sample {
+            return self.adsr.apply_envelope(self.vco.to_sine(Sample));
+        }
+
+        pub fn to_sawtooth(self: Self) Sample {
+            return self.adsr.apply_envelope(self.vco.to_sawtooth(Sample));
+        }
+
+        pub fn to_square(self: Self) Sample {
+            return self.adsr.apply_envelope(self.vco.to_square(Sample));
+        }
+
+        pub fn to_triangle(self: Self) Sample {
+            return self.adsr.apply_envelope(self.vco.to_triangle(Sample));
+        }
+
+        pub fn feed_event(self: *Self, event: Event) void {
+            self.adsr.feed_event(event.keypad);
+            self.vco.delta = event.vco_delta;
         }
     };
 }

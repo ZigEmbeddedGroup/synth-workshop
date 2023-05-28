@@ -49,24 +49,23 @@ pub fn main() !void {
     adc.select_input(pot);
     adc.start(.free_running);
 
-    var osc = Oscillator(sample_rate).init(440);
+    var vco = Oscillator(sample_rate).init(440);
     var volume: u12 = 0;
 
     // lfg
     while (true) {
-        if (i2s.is_writable()) {
-            // ADC conversions _can_ fail, if it does then don't change the
-            // volume.
-            volume = adc.read_result() catch volume;
+        if (!i2s.is_writable())
+            continue;
 
-            osc.tick();
+        vco.tick();
+        const sample: Sample = if (button.read() == 1)
+            vco.to_sawtooth(Sample)
+        else
+            0;
 
-            const sample: Sample = if (button.read() == 1)
-                osc.to_sawtooth(Sample)
-            else
-                0;
-
-            i2s.write_mono(apply_volume(sample, volume));
-        }
+        // ADC conversions _can_ fail, if it does then don't change the
+        // volume.
+        volume = adc.read_result() catch volume;
+        i2s.write_mono(apply_volume(sample, volume));
     }
 }

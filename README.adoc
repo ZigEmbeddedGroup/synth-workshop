@@ -1,6 +1,27 @@
 = SYCL 2023 Embedded Zig Workshop
 :toc:
 
+== Hello!
+
+== Parts Kit
+
+[cols="1,1"]
+|===
+| Name
+| Vendor
+| Part No
+
+| Breadboard
+| Digikey
+| <part no>
+
+| Raspberry Pi Pico
+| Digikey
+| <partn no>
+|===
+
+TODO: document what parts and where you can get them
+
 == Prerequisites
 
 * https://git-scm.com/downloads[Git]
@@ -8,7 +29,7 @@
 ** NOTE: for the windows installer, select the "add to path" option
 * Some sort of programming environment. If you are unsure, https://code.visualstudio.com/download[install VSCode]
 
-== Installing Zig
+=== Installing Zig
 
 Your laptop will fit under one of these platform strings:
 
@@ -19,3 +40,8 @@ Your laptop will fit under one of these platform strings:
 - aarch64-macos
 
 Open a command prompt/terminal run the command `./tools/zigup/<platform>/zigup master`, on windows it will be `zigup.exe`. This will install the zig compiler on your machine.
+
+If this does not work for you for some reason, you can download zig from https://ziglang.org/download/[here]. We are using the master build for this workshop.
+
+=== Setting up VS Code for Zig and Embedded Development
+

@@ -3,6 +3,7 @@
 //!
 //! It uses the A4 = 440Hz tuning standard
 const std = @import("std");
+const assert = std.debug.assert;
 
 const ref_index = calc_note_index(.A, Octave.num(4));
 const a4_hz = 440.0;
@@ -113,11 +114,18 @@ pub fn sound_profile_from_example(comptime example: []const struct {
         break :mag_sum sum;
     };
 
+    var level_sum: f64 = 0.0;
     for (&result.levels, &result.freqs, example) |*l, *f, e| {
         l.* = e.mag / mag_sum;
         // frequency  ration wrt fundamental
         f.* = e.freq / example[0].freq;
+
+        level_sum += l.*;
     }
+
+    const epsilon = std.math.floatEps(f64);
+    assert(level_sum < (1.0 + epsilon) and
+        level_sum > (1.0 - epsilon));
 
     return result;
 }

@@ -12,7 +12,14 @@ const time = rp2040.time;
 
 const led = gpio.num(29);
 
+const ADC = microzig.chip.peripherals.ADC;
+
 pub fn main() void {
+    ADC.CS.modify(.{
+        .EN = 1,
+        .AINSEL = 2,
+    });
+
     // peripherals on the RP2040 are initialized by reseting their state at the
     // beginning of our program. In this instance this step is actually
     // redundant. You will see that `microzig.hal` has a public function `init`
@@ -24,17 +31,17 @@ pub fn main() void {
     // initialization we have to select what the pin is going to do, in our
     // case SIO refers to the SIO subsystem: it's just going to be a regular
     // GPIO.
-    led.set_function(.sio);
+    //led.set_function(.sio);
 
     // GPIO are high impedance inputs by default.
-    led.set_direction(.out);
+    //led.set_direction(.out);
 
-    while (true) {
-        led.toggle();
+    //while (true) {
+    //led.toggle();
 
-        // this is based off a hardware timer in the RP2040, this is a blocking
-        // operation: it just continually polls the timer to see if the
-        // deadline has been hit
-        time.sleep_ms(1000);
-    }
+    // this is based off a hardware timer in the RP2040, this is a blocking
+    // operation: it just continually polls the timer to see if the
+    // deadline has been hit
+    //time.sleep_ms(1000);
+    //}
 }

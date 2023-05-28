@@ -24,12 +24,10 @@ const buffered_logs_max = 16;
 const fft_samples = 32;
 const stack_trace_depth_max = 16;
 
-const uart = rp2040.uart.num(0);
-const channel = dma.num(0);
-
-var fft_result = FftBuffer.init();
-var logs = LogsBuffer.init();
+var logs = LogBuffers.init();
 var dma_running = Volatile(bool).init(false);
+var uart: rp2040.uart.UART = undefined;
+var channel: dma.Channel = undefined;
 
 pub const Message = extern struct {
     kind: Kind,
@@ -51,7 +49,7 @@ pub const Message = extern struct {
 };
 
 pub const interrupts = struct {
-    /// This handler runs when the transfer is complete.
+    /// This handler runs when the DMA transfer is complete.
     pub fn DMA_IRQ_0() void {
         channel.acknowledge_irq0();
         assert(!channel.is_busy());
@@ -60,54 +58,48 @@ pub const interrupts = struct {
         logs.pop_buffer();
 
         // TODO: pick highest priority message
-        if (!logs.empty())
+        if (!logs.is_empty())
             trigger_dma()
         else
             dma_running.store(false);
     }
-
-    /// this handler waits for incoming samples from the other processor
-    /// and enqueues them
-    pub fn SIO_IRQ_PROC0() void {
-        // TODO do we need to acknowledge this interrupt?
-        while (fifo.read()) |value|
-            fft_result.append(value);
-
-        if (fft_result.full() and !channel.is_busy())
-            trigger_dma();
-    }
 };
 
-/// initializes the UART
-pub fn init() void {
-    // TODO: uart init
-    //irq.enable("SIO_IRQ_0");
-    //uart.claim();
-    channel.claim();
+pub const Config = struct {
+    dma_channel: dma.Channel,
+    uart: rp2040.uart.UART,
+    baud_rate: u32,
+    tx_pin: gpio.Pin,
+    rx_pin: gpio.Pin,
+    clock_config: rp2040.clocks.GlobalConfiguration,
+};
 
+pub fn apply(comptime config: Config) void {
+    uart = config.uart;
     uart.apply(.{
-        .baud_rate = 115200,
-        .tx_pin = gpio.num(0), // Use GP0 for TX
-        .rx_pin = gpio.num(1), // Use GP1 for RX
-        .clock_config = rp2040.clock_config,
+        .baud_rate = config.baud_rate,
+        .tx_pin = config.tx_pin,
+        .rx_pin = config.rx_pin,
+        .clock_config = config.clock_config,
     });
 
+    channel = config.dma_channel;
+    channel.claim();
     channel.set_irq0_enabled(true);
+
     irq.enable("DMA_IRQ_0");
 
     std.log.info("================ STARTING MONITOR SESSION ================", .{});
-
-    // TODO: launch core1 with fft task
 }
 
 pub fn trigger_dma() void {
     assert(!channel.is_busy());
 
-    const front = logs.get_front();
+    const first = logs.get_first();
     channel.trigger_transfer(
         @ptrToInt(uart.tx_fifo()),
-        @ptrToInt(&front.buffer),
-        front.len,
+        @ptrToInt(&first.buffer.buffer),
+        first.buffer.len,
         .{
             .transfer_size_bytes = 1,
             .dreq = uart.dreq_tx(),
@@ -127,7 +119,7 @@ pub fn log(
     args: anytype,
 ) void {
     const level_prefix = comptime "[{}.{:0>6}] " ++ level.asText();
-    const prefix = comptime level_prefix ++ switch (scope) {
+    const prefix = comptime level_prefix ++ " ({}) " ++ switch (scope) {
         .default => ": ",
         else => " (" ++ @tagName(scope) ++ "): ",
     };
@@ -139,15 +131,15 @@ pub fn log(
 
     // If there's no more space then we drop the log
     // TODO: log for how many logs were missed
-    if (logs.acquire_buffer()) |volatile_buffer| {
+    if (logs.acquire_buffer()) |volatile_log_entry| {
         const current_time = time.get_time_since_boot();
-        const seconds = current_time.us_since_boot / std.time.us_per_s;
-        const microseconds = current_time.us_since_boot % std.time.us_per_s;
+        const seconds = current_time.to_us() / std.time.us_per_s;
+        const microseconds = current_time.to_us() % std.time.us_per_s;
 
-        const buffer = @volatileCast(volatile_buffer);
+        const log_entry = @volatileCast(volatile_log_entry);
         // if we fail to print a log then something is fishy
-        buffer.writer().print(prefix ++ format ++ "\r\n", .{ seconds, microseconds } ++ args) catch {
-            @panic("failed to print a log, maybe it overwrote the buffer?");
+        log_entry.buffer.writer().print(prefix ++ format ++ "\r\n", .{ seconds, microseconds, log_entry.missed } ++ args) catch {
+            @panic("failed to print a log, maybe buffer was too small?");
         };
 
         // if the channel is busy then we can rely on the interrupt
@@ -155,46 +147,23 @@ pub fn log(
         // need to trigger another transfer
         if (!dma_running.load_with_disabled_irqs())
             trigger_dma();
+    } else {
+        // There are no more log buffers, we will increment the number of
+        // missed logs on the newest entry to the queue
+        logs.get_last().missed += 1;
     }
 }
 
-const FftBuffer = struct {
-    buf: [2 + fft_samples]u32,
-    len: u32,
-
-    const Self = @This();
-    pub fn init() Self {
-        return Self{
-            .buf = undefined,
-            .len = 0,
-        };
-    }
-
-    pub fn append(self: *volatile Self, sample: u32) void {
-        if (self.full())
-            @panic("FFT buffer overflow");
-
-        self.buf[self.len] = sample;
-        self.len += 1;
-    }
-
-    pub fn full(self: *volatile Self) bool {
-        return self.len == self.buf.len;
-    }
-
-    pub fn reset(self: *volatile Self) void {
-        // TODO: fill in kind, length, and sample rate
-        self.len = 0;
-    }
-};
-
-const LogsBuffer = struct {
-    items: [buffered_logs_max]LogBuffer,
+const LogBuffers = struct {
+    items: [buffered_logs_max]Log,
     start: u32,
     len: u32,
 
-    const LogBuffer = std.BoundedArray(u8, 3 + log_length_max);
     const Self = @This();
+    const Log = struct {
+        missed: usize,
+        buffer: std.BoundedArray(u8, 3 + log_length_max),
+    };
 
     pub fn init() Self {
         return Self{
@@ -204,17 +173,25 @@ const LogsBuffer = struct {
         };
     }
 
-    pub fn empty(self: *const volatile Self) bool {
+    pub fn is_empty(self: *const volatile Self) bool {
         return self.len == 0;
     }
 
-    pub fn get_front(self: *const volatile Self) *const volatile LogBuffer {
-        assert(!self.empty());
+    pub fn is_full(self: *const volatile Self) bool {
+        return self.len == self.items.len;
+    }
+
+    pub fn get_first(self: *const volatile Self) *const volatile Log {
+        assert(!self.is_empty());
 
         return &self.items[self.start];
     }
 
-    pub fn acquire_buffer(self: *volatile Self) ?*volatile LogBuffer {
+    pub fn get_last(self: *volatile Self) *volatile Log {
+        return &self.items[(self.start + self.len) % buffered_logs_max];
+    }
+
+    pub fn acquire_buffer(self: *volatile Self) ?*volatile Log {
         if (self.len >= buffered_logs_max)
             return null;
 
@@ -222,7 +199,8 @@ const LogsBuffer = struct {
         self.len += 1;
 
         const ret = &self.items[index];
-        ret.len = 0;
+        ret.buffer.len = 0;
+        ret.missed = 0;
         return ret;
     }
 

@@ -16,7 +16,7 @@ const apply_volume = workshop.apply_volume;
 const notes = workshop.notes;
 
 // configuration
-const sample_rate = 96_000;
+const sample_rate = 44_100;
 const Sample = i16;
 
 const pot = adc.input(2);
@@ -35,7 +35,7 @@ const frequency_table: [16]u32 = blk: {
 
     var result: [16]u32 = undefined;
     for (&result, scale_freqs[0..result.len]) |*r, freq|
-        r.* = workshop.update_count_from_float(sample_rate, freq);
+        r.* = workshop.phase_delta_from_float(sample_rate, freq);
 
     break :blk result;
 };
@@ -54,26 +54,23 @@ pub fn main() !void {
     adc.start(.free_running);
 
     var keypad = Keypad.init();
-    var osc = Oscillator(sample_rate).init(0);
+    var vco = Oscillator(sample_rate).init(0);
     var volume: u12 = 0;
 
     while (true) {
-        if (i2s.is_writable()) {
-            volume = adc.read_result() catch volume;
+        if (!i2s.is_writable())
+            continue;
 
-            keypad.tick();
-            if (keypad.get_event()) |event| switch (event.kind) {
-                .pressed => osc.update_count = frequency_table[@enumToInt(event.button)],
-                .released => osc.reset(),
-            };
+        keypad.tick();
+        if (keypad.get_event()) |event| switch (event.kind) {
+            .pressed => vco.delta = frequency_table[@enumToInt(event.button)],
+            .released => vco.reset(),
+        };
 
-            osc.tick();
-            const sample = osc.to_sine(Sample);
-            // alternatively try:
-            // const sample = osc.to_squarewave(Sample);
-            // const sample = osc.to_sawtooth(Sample);
+        vco.tick();
+        const sample = vco.to_sine(Sample);
 
-            i2s.write_mono(apply_volume(sample, volume));
-        }
+        volume = adc.read_result() catch volume;
+        i2s.write_mono(apply_volume(sample, volume));
     }
 }
