@@ -1,35 +1,37 @@
 = SYCL 2023 Embedded Zig Workshop
 :toc:
 
-== Hello!
+== Introduction
+
+Hello! if you're reading this then you're either ta
 
 == Parts Kit
 
 [cols="1,1,1"]
 |===
-| Name | Vendor | Part No
+| Name                | Vendor   | Part No
 
-| Breadboard | Digikey | <part no>
-| Raspberry Pi Pico | Digikey | <partn no>
-
-| 4x4 Keypad
-| Adafruit
-| 3844
-
-| Speaker
-|
-|
+| Breadboard          | Digikey  | 1528-2143-ND
+| Jumpers             | Digikey  | 1568-1633-ND
+| Raspberry Pi Pico H | Digikey  | 2648-SC0917-ND
+| Potentiometer       | Digikey  | 987-1714-ND
+| Digital Encoder     | Digikey  | PEC11R-4220K-S0024-ND
+| Micro USB Cable     | Digikey  | AE11229-ND
+| Pico Debugger       | Adafruit | 5699
+| 4x4 Keypad          | Adafruit | 3844
+| Speaker             | Adafruit | 1314
+| Amplifier           | Adafruit | 3006
 
 |===
 
-TODO: document what parts and where you can get them
+NOTE: you will need to solder wires to the speaker. You can use a different speaker if you like, but it must be 3W, 4 ohm.
 
 == Prerequisites
 
 * https://git-scm.com/downloads[Git]
 * https://developer.arm.com/downloads/-/gnu-rm[Arm GNU Toolchain (for GDB)]
 ** NOTE: for the windows installer, select the "add to path" option
-* Some sort of programming environment. If you are unsure, https://code.visualstudio.com/download[install VSCode]
+* Some sort of programming environment. If you are unsure, refer to <<Setting up VS Code for Zig and Embedded Development>>
 
 === Installing Zig
 
@@ -47,3 +49,9 @@ If this does not work for you for some reason, you can download zig from https:/
 
 === Setting up VS Code for Zig and Embedded Development
 
+1. https://code.visualstudio.com/download[Install VS Code]
+
+Extensions to Install:
+
+* https://marketplace.visualstudio.com/items?itemName=ziglang.vscode-zig[Zig]
+* https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-serial-monitor[Serial Monitor]
