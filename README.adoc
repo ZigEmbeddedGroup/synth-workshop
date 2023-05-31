@@ -10,7 +10,6 @@ Hello! if you're reading this then you're either ta
 [cols="1,1,1"]
 |===
 | Name                | Vendor   | Part No
-
 | Breadboard          | Digikey  | 1528-2143-ND
 | Jumpers             | Digikey  | 1568-1633-ND
 | Raspberry Pi Pico H | Digikey  | 2648-SC0917-ND
@@ -21,7 +20,6 @@ Hello! if you're reading this then you're either ta
 | 4x4 Keypad          | Adafruit | 3844
 | Speaker             | Adafruit | 1314
 | Amplifier           | Adafruit | 3006
-
 |===
 
 NOTE: you will need to solder wires to the speaker. You can use a different speaker if you like, but it must be 3W, 4 ohm.
@@ -47,11 +45,41 @@ Open a command prompt/terminal run the command `./tools/zigup/<platform>/zigup m
 
 If this does not work for you for some reason, you can download zig from https://ziglang.org/download/[here]. We are using the master build for this workshop.
 
-=== Setting up VS Code for Zig and Embedded Development
+=== OpenOCD
 
-1. https://code.visualstudio.com/download[Install VS Code]
+At the time of writing, I've not been able to get the current release of OpenOCD (0.12.0) working correctly on MacOS, this was sourced using `brew`. Instead I have found success with https://github.com/raspberrypi/openocd[Raspberry Pi's fork of OpenOCD].
+
+If you run `windows` or `macos` I've committed binaries to this repository since they're easy to package. If you run `linux` though you'll have to build it on your own, and then add it to your `PATH`:
+
+[source]
+----
+git clone https://github.com/raspberrypi/openocd
+./bootstrap
+./configure --enable-picoprobe
+make -j2 install
+----
+
+== Setting up VS Code for Zig and Embedded Development
 
 Extensions to Install:
 
 * https://marketplace.visualstudio.com/items?itemName=ziglang.vscode-zig[Zig]
+** When you open up a zig file, this extension will ask if you'd like to enable ZLS, I suggest you do.
 * https://marketplace.visualstudio.com/items?itemName=ms-vscode.vscode-serial-monitor[Serial Monitor]
+
+== Building and running a demo using UF2
+
+1. Compile the demos by running `zig build` in your project root.
+2. <TODO> explain reseting and mounting
+3. Copy the uf2 file into the mounted drive. Execution should take place immediately
+
+== Building and running a demo using the Pico Probe
+
+1. Run `zig build openocd` in a terminal, it will invoke the correct flags for you. You need to restart this command if you unplug the debugger, otherwise just keep it running in the background.
+2. In a separate terminal, compile the demos with `zig build`.
+3. Run:
+  a. `arm-none-eabi-gdb <path to the executable>`
+  b. `> load`
+  c. `> run` and confirm
+
+CTRL-C will interrupt operation if you need to set breakpoints. There is a `.gdbinit` file in this project that tells GDB to initially connect to `localhost:3333`
