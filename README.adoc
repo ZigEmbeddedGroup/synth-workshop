@@ -54,9 +54,10 @@ If you run `windows` or `macos` I've committed binaries to this repository since
 [source]
 ----
 git clone https://github.com/raspberrypi/openocd
+cd openocd
 ./bootstrap
 ./configure --enable-picoprobe
-make -j2 install
+make -j4 install
 ----
 
 == Setting up VS Code for Zig and Embedded Development
