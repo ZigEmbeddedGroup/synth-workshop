@@ -297,142 +297,151 @@ pub const Button = enum(u4) {
     }
 };
 
-pub const ButtonState = enum(u1) {
-    pressed,
-    released,
-};
-
-pub const KeypadEvent = struct {
-    timestamp: time.Absolute,
-    kind: ButtonState,
-    button: Button,
-};
-
-pub fn Keypad(comptime options: struct {
+pub const Keypad = struct {
+    order: OrderList,
+    pressed: [16]bool,
+    timestamps: [16]time.Absolute,
+    last_released: ?Button,
+    deadline: time.Absolute,
+    row: u2,
+    state_changed: bool,
     row_pins: [4]u5,
     col_pins: [4]u5,
-    period_us: u32,
-}) type {
-    const rows_mask = blk: {
-        var result: u32 = 0;
-        inline for (options.row_pins) |pin|
-            result |= @as(u32, 1) << pin;
+    period: time.Duration,
+    col_mask: gpio.Mask,
+    row_mask: gpio.Mask,
 
-        break :blk result;
+    const Self = @This();
+
+    const OrderList = std.BoundedArray(Button, 16);
+
+    pub const Options = struct {
+        row_pins: [4]u5,
+        col_pins: [4]u5,
+        period: time.Duration,
     };
 
-    const cols_mask = blk: {
-        var result: u32 = 0;
-        inline for (options.col_pins) |pin|
-            result |= @as(u32, 1) << pin;
-
-        break :blk result;
+    pub const ButtonState = enum(u1) {
+        pressed,
+        released,
     };
 
-    assert(0 == rows_mask & cols_mask); // NO OVERLAP
+    pub const Event = struct {
+        timestamp: time.Absolute,
+        kind: ButtonState,
+        button: Button,
+    };
 
-    return struct {
-        order: OrderList,
-        pressed: [16]bool,
-        timestamps: [16]time.Absolute,
-        last_released: ?Button,
-        deadline: time.Absolute,
-        row: u2,
-        state_changed: bool,
+    pub fn init(comptime options: Options) Self {
+        const row_mask = comptime blk: {
+            var result: u32 = 0;
+            inline for (options.row_pins) |pin|
+                result |= @as(u32, 1) << pin;
 
-        const Self = @This();
+            break :blk gpio.mask(result);
+        };
 
-        const OrderList = std.BoundedArray(Button, options.row_pins.len * options.col_pins.len);
-        const rows = gpio.mask(rows_mask);
-        const cols = gpio.mask(cols_mask);
+        const col_mask = comptime blk: {
+            var result: u32 = 0;
+            inline for (options.col_pins) |pin|
+                result |= @as(u32, 1) << pin;
 
-        pub fn init() Self {
-            cols.set_function(.sio);
-            cols.set_direction(.in);
-            cols.set_pull(.down);
+            break :blk gpio.mask(result);
+        };
 
-            // we scan by rows, so they are the outputs
-            rows.set_function(.sio);
-            rows.set_direction(.out);
+        comptime assert(0 == (@enumToInt(row_mask) & @enumToInt(col_mask))); // pins overlap
 
-            return Self{
-                .order = OrderList.init(0) catch unreachable,
-                .pressed = [_]bool{false} ** 16,
-                .timestamps = [_]time.Absolute{@intToEnum(time.Absolute, 0)} ** 16,
-                .last_released = null,
-                .deadline = time.make_timeout_us(options.period_us / 4),
-                .row = 0,
-                .state_changed = false,
-            };
-        }
+        col_mask.set_function(.sio);
+        col_mask.set_direction(.in);
+        col_mask.set_pull(.down);
 
-        pub fn tick(self: *Self) void {
-            if (!self.deadline.is_reached())
-                return;
+        // we scan by rows, so they are the outputs
+        row_mask.set_function(.sio);
+        row_mask.set_direction(.out);
 
-            const result = cols.read();
-            for (options.col_pins, 0..) |pin, col| {
-                const button = Button.from_coord(.{
-                    .row = self.row,
-                    .col = @intCast(u2, col),
-                });
+        return Self{
+            .order = OrderList.init(0) catch unreachable,
+            .pressed = [_]bool{false} ** 16,
+            .timestamps = [_]time.Absolute{@intToEnum(time.Absolute, 0)} ** 16,
+            .last_released = null,
+            // TODO: figure out if this is okay
+            .deadline = time.make_timeout_us(0),
+            .row = 0,
+            .state_changed = false,
+            .period = options.period,
+            .col_pins = options.col_pins,
+            .row_pins = options.row_pins,
+            .col_mask = col_mask,
+            .row_mask = row_mask,
+        };
+    }
 
-                // detect that state has changed
-                const prev = self.pressed[@enumToInt(button)];
-                const curr = (0 != result & (@as(u32, 1) << pin));
+    pub fn tick(self: *Self) void {
+        if (!self.deadline.is_reached())
+            return;
 
-                // no state change detected, continue to the next button in
-                // the row
-                if (prev == curr)
-                    continue;
+        const result = self.col_mask.read();
+        for (self.col_pins, 0..) |pin, col| {
+            const button = Button.from_coord(.{
+                .row = self.row,
+                .col = @intCast(u2, col),
+            });
 
-                if (curr) { // pressed
-                    if (self.last_released) |released_button| {
-                        if (button == released_button)
-                            self.last_released = null;
-                    }
+            // detect that state has changed
+            const prev = self.pressed[@enumToInt(button)];
+            const curr = (0 != result & (@as(u32, 1) << pin));
 
-                    self.order.append(button) catch unreachable;
-                    self.pressed[@enumToInt(button)] = true;
-                } else { // released
-                    const index = std.mem.indexOfScalar(Button, self.order.slice(), button).?;
-                    _ = self.order.orderedRemove(index);
-                    self.last_released = button;
-                    self.pressed[@enumToInt(button)] = false;
+            // no state change detected, continue to the next button in
+            // the row
+            if (prev == curr)
+                continue;
+
+            if (curr) { // pressed
+                if (self.last_released) |released_button| {
+                    if (button == released_button)
+                        self.last_released = null;
                 }
 
-                // update timestamp to last state update
-                self.timestamps[@enumToInt(button)] = time.get_time_since_boot();
-                self.state_changed = true;
+                self.order.append(button) catch unreachable;
+                self.pressed[@enumToInt(button)] = true;
+            } else { // released
+                const index = std.mem.indexOfScalar(Button, self.order.slice(), button).?;
+                _ = self.order.orderedRemove(index);
+                self.last_released = button;
+                self.pressed[@enumToInt(button)] = false;
             }
 
-            self.row +%= 1;
-            rows.put(@as(u32, 1) << options.row_pins[self.row]);
-            self.deadline = time.make_timeout_us(options.period_us / 4);
+            // update timestamp to last state update
+            self.timestamps[@enumToInt(button)] = time.get_time_since_boot();
+            self.state_changed = true;
         }
 
-        pub fn get_event(self: *Self) ?KeypadEvent {
-            return if (self.state_changed) event: {
-                defer self.state_changed = false;
-                const kind: ButtonState = if (self.order.len > 0)
-                    .pressed
-                else
-                    .released;
+        self.row +%= 1;
+        self.row_mask.put(@as(u32, 1) << self.row_pins[self.row]);
+        self.deadline = time.make_timeout_us(self.period.to_us() / 4);
+    }
 
-                const button = switch (kind) {
-                    .pressed => self.order.get(self.order.len - 1),
-                    .released => self.last_released.?,
-                };
+    pub fn get_event(self: *Self) ?Event {
+        return if (self.state_changed) event: {
+            defer self.state_changed = false;
+            const kind: ButtonState = if (self.order.len > 0)
+                .pressed
+            else
+                .released;
 
-                break :event KeypadEvent{
-                    .kind = kind,
-                    .button = button,
-                    .timestamp = self.timestamps[@enumToInt(button)],
-                };
-            } else null;
-        }
-    };
-}
+            const button = switch (kind) {
+                .pressed => self.order.get(self.order.len - 1),
+                .released => self.last_released.?,
+            };
+
+            break :event Event{
+                .kind = kind,
+                .button = button,
+                .timestamp = self.timestamps[@enumToInt(button)],
+            };
+        } else null;
+    }
+};
 
 pub fn mix(
     comptime T: type,
@@ -621,7 +630,7 @@ pub fn AdsrEnvelopeGenerator(comptime T: type) type {
 
         /// A new sudden event has taken place and the state machine must be
         /// updated accordingly.
-        pub fn feed_event(self: *Self, event: KeypadEvent) void {
+        pub fn feed_event(self: *Self, event: Keypad.Event) void {
             const profile = self.profile;
             const timestamp = event.timestamp;
             self.state = switch (event.kind) {
@@ -721,7 +730,7 @@ pub fn Operator(comptime Sample: type, comptime sample_rate: u32) type {
         const Self = @This();
 
         pub const Event = struct {
-            keypad: KeypadEvent,
+            keypad: Keypad.Event,
             vco_delta: u32,
         };
 
@@ -754,10 +763,6 @@ pub fn Operator(comptime Sample: type, comptime sample_rate: u32) type {
 
         pub fn to_square(self: Self) Sample {
             return self.adsr.apply_envelope(self.vco.to_square(Sample));
-        }
-
-        pub fn to_triangle(self: Self) Sample {
-            return self.adsr.apply_envelope(self.vco.to_triangle(Sample));
         }
 
         pub fn feed_event(self: *Self, event: Event) void {

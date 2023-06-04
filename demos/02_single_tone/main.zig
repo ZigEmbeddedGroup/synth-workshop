@@ -16,7 +16,7 @@ const workshop = @import("workshop");
 const Oscillator = workshop.Oscillator;
 
 // configuration
-const sample_rate = 96_000;
+const sample_rate = 44_100;
 const Sample = i16;
 
 // hardware blocks
@@ -59,7 +59,6 @@ pub fn main() !void {
             // alternatively, try:
             // vco.to_sawtooth(Sample)
             // vco.to_squarewave(Sample)
-            // vco.to_triangle(Sample)
         else
             0;
 

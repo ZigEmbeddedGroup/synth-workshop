@@ -17,12 +17,11 @@ const demos: []const Demo = &.{
     .{ .name = "uart_monitor",           .path = "demos/01_uart/monitor.zig" },
     .{ .name = "single_tone",            .path = "demos/02_single_tone/main.zig" },
     .{ .name = "volume_knob",            .path = "demos/03_volume_knob/main.zig" },
-    .{ .name = "changing_pitch",         .path = "demos/04_changing_pitch/main.zig" },
-    .{ .name = "monophonic_keypad",      .path = "demos/05_monophonic_keypad/main.zig" },
-    .{ .name = "adsr",                   .path = "demos/06_adsr/main.zig" },
-    .{ .name = "additive_synthesis",     .path = "demos/07_additive_synthesis/main.zig" },
-    .{ .name = "fm_synthesis_lfo",       .path = "demos/08_fm_synthesis/lfo.zig" },
-    .{ .name = "fm_synthesis_operators", .path = "demos/08_fm_synthesis/operators.zig" },
+    .{ .name = "monophonic_keypad",      .path = "demos/04_monophonic_keypad/main.zig" },
+    .{ .name = "adsr",                   .path = "demos/05_adsr/main.zig" },
+    .{ .name = "additive_synthesis",     .path = "demos/06_additive_synthesis/main.zig" },
+    .{ .name = "fm_synthesis_lfo",       .path = "demos/07_fm_synthesis/lfo.zig" },
+    .{ .name = "fm_synthesis_operators", .path = "demos/07_fm_synthesis/operators.zig" },
     // zig fmt: on
 };
 
@@ -68,12 +67,16 @@ pub fn build(b: *Builder) void {
     // zig fmt: off
     const run_openocd = b.addSystemCommand(&.{
         openocd_exe,
-        "-s", openocd_scripts_dir,
         "-f", "interface/cmsis-dap.cfg",
         "-f", "target/rp2040.cfg",
         "-c", "adapter speed 5000",
     });
     // zig fmt: on
+
+    // linux users need to build their own openocd
+    if (builtin.os.tag == .linux) {
+        run_openocd.addArgs(&.{ "-s", openocd_scripts_dir });
+    }
 
     const openocd = b.step("openocd", "run openocd for your debugger");
     openocd.dependOn(&run_openocd.step);

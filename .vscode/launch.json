@@ -5,13 +5,30 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Cortex Debug",
-            "cwd": "${workspaceFolder}",
-            "executable": "./bin/executable.elf",
+            "cwd": "${workspaceRoot}",
+            "executable": "zig-out/bin/adsr",
+            "name": "Debug with OpenOCD",
             "request": "launch",
             "type": "cortex-debug",
-            "runToEntryPoint": "main",
-            "servertype": "jlink"
+            "servertype": "openocd",
+            "configFiles": [],
+            "searchDir": [],
+            "runToEntryPoint": "main.main",
+            "showDevDebugOutput": "none"
+        },
+        {
+            "debuggerPath": "arm-none-eabi-gdb",
+            "type": "by-gdb",
+            "request": "launch",
+            "name": "Launch(remote)",
+            "program": "zig-out/bin/adsr",
+            "cwd": "${workspaceRoot}",
+            "remote": {
+                "enabled": true,
+                "address": ":3333",
+                "mode": "remote",
+                "execfile": "zig-out/bin/adsr"
+            }
         }
     ]
 }

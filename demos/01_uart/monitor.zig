@@ -36,9 +36,7 @@ pub fn main() !void {
         .clock_config = rp2040.clock_config,
     });
 
-    rp2040.uart.init_logger(uart);
-    time.sleep_us(100);
-
+    microzig.cpu.enable_interrupts();
     while (true) {
         std.log.info("hello!", .{});
 

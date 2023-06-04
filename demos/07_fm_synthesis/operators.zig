@@ -11,6 +11,7 @@ const workshop = @import("workshop");
 const Oscillator = workshop.Oscillator;
 const apply_volume = workshop.apply_volume;
 const notes = workshop.notes;
+const Keypad = workshop.Keypad;
 const Operator = workshop.Operator(Sample, sample_rate);
 const mix = workshop.mix;
 
@@ -20,11 +21,6 @@ const Sample = i16;
 
 const pot = adc.input(2);
 const I2S = workshop.I2S(Sample, .{ .sample_rate = sample_rate });
-const Keypad = workshop.Keypad(.{
-    .row_pins = .{ 20, 21, 22, 26 },
-    .col_pins = .{ 16, 17, 18, 19 },
-    .period_us = 2000,
-});
 
 const frequency_table: [16]u32 = blk: {
     const scale_freqs =
@@ -52,19 +48,12 @@ pub fn main() !void {
     adc.select_input(pot);
     adc.start(.free_running);
 
-    var keypad = Keypad.init();
     var volume: u12 = 0;
-
-    var vibrato = Operator.init(.{
-        .profile = .{
-            .attack = time.Duration.from_ms(25),
-            .decay = time.Duration.from_ms(25),
-            .sustain = 0x1fff,
-            .release = time.Duration.from_ms(1000),
-        },
+    var keypad = Keypad.init(.{
+        .row_pins = .{ 20, 21, 22, 26 },
+        .col_pins = .{ 16, 17, 18, 19 },
+        .period = time.Duration.from_us(2000),
     });
-
-    vibrato.vco.delta = workshop.phase_delta_from_float(sample_rate, 1.5);
 
     var modulator = Operator.init(.{
         .profile = .{
@@ -92,11 +81,6 @@ pub fn main() !void {
 
         keypad.tick();
         if (keypad.get_event()) |event| {
-            if (event.kind == .pressed and keypad.order.len == 1)
-                vibrato.vco.phase = 0;
-
-            vibrato.adsr.feed_event(event);
-
             modulator.feed_event(.{
                 .keypad = event,
                 .vco_delta = frequency_table[@enumToInt(event.button)],
@@ -107,9 +91,6 @@ pub fn main() !void {
                 .vco_delta = frequency_table[@enumToInt(event.button)],
             });
         }
-
-        vibrato.tick();
-        modulator.input = vibrato.to_sine();
 
         modulator.tick();
         carrier.input = modulator.to_sine();

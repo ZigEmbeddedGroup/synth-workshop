@@ -79,7 +79,7 @@ cd sycl-workshop-2023
 == Building and running a demo using UF2
 
 1. Compile the demos by running `zig build` in your project root.
-2. To activate the uf2 bootloader, power must be applied to the pico while the reset button is held. This is best done by connecting a button from `RUN` to ground, pressing both buttons, and releasing the `RUN` button first. The other option is to plug/unplug the USB cable which is awkward and gets tiresome.
+2. To activate the uf2 bootloader, power must be applied to the pico while the `BOOTSEL` button is held. This is best done by connecting a button from `RUN` to ground, pressing both buttons, and releasing the `RUN` button first, then `BOOTSEL`. The other option is to plug/unplug the USB cable which is awkward and gets tiresome.
 3. Copy the uf2 file into the mounted drive. Execution should take place immediately
 
 == Building and running a demo using the Pico Probe

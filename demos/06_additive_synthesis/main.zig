@@ -14,6 +14,7 @@ const workshop = @import("workshop");
 const Oscillator = workshop.Oscillator(sample_rate);
 const apply_volume = workshop.apply_volume;
 const notes = workshop.notes;
+const Keypad = workshop.Keypad;
 const AdsrEnvelopeGenerator = workshop.AdsrEnvelopeGenerator(Sample);
 const mix = workshop.mix;
 
@@ -23,11 +24,6 @@ const Sample = i16;
 
 const pot = adc.input(2);
 const I2S = workshop.I2S(Sample, .{ .sample_rate = sample_rate });
-const Keypad = workshop.Keypad(.{
-    .row_pins = .{ 20, 21, 22, 26 },
-    .col_pins = .{ 16, 17, 18, 19 },
-    .period_us = 2000,
-});
 
 const sound_profile = notes.sound_profile_from_example(&.{
     .{ .freq = 440.0, .mag = 1.0 },
@@ -65,12 +61,6 @@ const frequency_table: [16][sound_profile.len()]u32 = blk: {
     break :blk result;
 };
 
-pub fn panic(message: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
-    std.log.err("panic: {s}", .{message});
-    @breakpoint();
-    while (true) {}
-}
-
 pub fn main() !void {
     const i2s = I2S.init(.pio0, .{
         .clock_config = rp2040.clock_config,
@@ -84,9 +74,13 @@ pub fn main() !void {
     adc.select_input(pot);
     adc.start(.free_running);
 
-    var keypad = Keypad.init();
-    var volume: u12 = 0;
     var vco_bank = [_]Oscillator{Oscillator.init(0)} ** sound_profile.len();
+    var volume: u12 = 0;
+    var keypad = Keypad.init(.{
+        .row_pins = .{ 20, 21, 22, 26 },
+        .col_pins = .{ 16, 17, 18, 19 },
+        .period = time.Duration.from_us(2000),
+    });
     var adsr = AdsrEnvelopeGenerator.init(.{
         .attack = time.Duration.from_ms(100),
         .decay = time.Duration.from_ms(100),
@@ -105,6 +99,7 @@ pub fn main() !void {
                 vco.delta = frequency_table[@enumToInt(event.button)][i];
         }
 
+        // TODO: mix_wide
         for (&vco_bank) |*vco| vco.tick();
         const vco_output = mix(Sample, &sound_profile.levels, .{
             vco_bank[0].to_sine(Sample),

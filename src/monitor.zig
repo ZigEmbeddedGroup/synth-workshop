@@ -57,7 +57,6 @@ pub const interrupts = struct {
         // we're done with the front of the queue
         logs.pop_buffer();
 
-        // TODO: pick highest priority message
         if (!logs.is_empty())
             trigger_dma()
         else
