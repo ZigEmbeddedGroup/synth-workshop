@@ -15,11 +15,6 @@ const led = gpio.num(29);
 const ADC = microzig.chip.peripherals.ADC;
 
 pub fn main() void {
-    ADC.CS.modify(.{
-        .EN = 1,
-        .AINSEL = 2,
-    });
-
     // peripherals on the RP2040 are initialized by reseting their state at the
     // beginning of our program. In this instance this step is actually
     // redundant. You will see that `microzig.hal` has a public function `init`
