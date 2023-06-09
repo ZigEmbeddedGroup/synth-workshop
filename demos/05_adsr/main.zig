@@ -84,8 +84,7 @@ pub fn main() !void {
         adsr.tick();
         const sample = adsr.apply_envelope(osc_output);
 
-        volume = std.math.maxInt(u12) / 2;
-        //adc.read_result() catch volume;
+        volume = adc.read_result() catch volume;
         i2s.write_mono(apply_volume(sample, volume));
     }
 }
