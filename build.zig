@@ -22,6 +22,7 @@ const demos: []const Demo = &.{
     .{ .name = "additive_synthesis",     .path = "demos/06_additive_synthesis/main.zig" },
     .{ .name = "fm_synthesis_lfo",       .path = "demos/07_fm_synthesis/lfo.zig" },
     .{ .name = "fm_synthesis_operators", .path = "demos/07_fm_synthesis/operators.zig" },
+    .{ .name = "rick", .path = "demos/08_rick/main.zig" },
     // zig fmt: on
 };
 
