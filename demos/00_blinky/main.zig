@@ -10,7 +10,7 @@ const rp2040 = microzig.hal;
 const gpio = rp2040.gpio;
 const time = rp2040.time;
 
-const led = gpio.num(29);
+const led = gpio.num(25);
 
 const ADC = microzig.chip.peripherals.ADC;
 
