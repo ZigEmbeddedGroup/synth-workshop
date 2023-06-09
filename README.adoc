@@ -3,7 +3,7 @@
 
 == Introduction
 
-Hello! if you're reading this then you're either ta
+Hello! if you're reading this then you're either taking the zig embedded workshop at SYCL 2023, or you're just curious. Either way, welcome!
 
 == Parts Kit
 
@@ -72,7 +72,7 @@ Extensions to Install:
 
 [source]
 ----
-git clone https://github.com/ZigEmbeddedGroup/sycl-workshop-2023.git
+git clone --recursive https://github.com/ZigEmbeddedGroup/sycl-workshop-2023.git
 cd sycl-workshop-2023
 ----
 
