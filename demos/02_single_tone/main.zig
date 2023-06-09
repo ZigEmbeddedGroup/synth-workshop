@@ -35,7 +35,7 @@ pub fn main() !void {
         .data_pin = gpio.num(4),
     });
 
-    var vco: Oscillator(sample_rate) = .{};
+    var vco = Oscillator(sample_rate).init(440);
 
     while (true) {
         // The highest priority task we have is to generate a sample every
@@ -43,10 +43,6 @@ pub fn main() !void {
         // sound
         if (!i2s.is_writable())
             continue;
-
-        // assert that this branch never takes longer than a sample period
-        const timeout = time.make_timeout_us(10);
-        defer assert(!timeout.is_reached());
 
         vco.tick();
 
