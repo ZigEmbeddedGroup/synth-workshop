@@ -75,7 +75,7 @@ pub fn main() !void {
         keypad.tick();
         if (keypad.get_event()) |event| {
             adsr.feed_event(event);
-            osc.delta = frequency_table[@enumToInt(event.button)];
+            osc.delta = frequency_table[@intFromEnum(event.button)];
         }
 
         osc.tick();

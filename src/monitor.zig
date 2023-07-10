@@ -96,8 +96,8 @@ pub fn trigger_dma() void {
 
     const first = logs.get_first();
     channel.trigger_transfer(
-        @ptrToInt(uart.tx_fifo()),
-        @ptrToInt(&first.buffer.buffer),
+        @intFromPtr(uart.tx_fifo()),
+        @intFromPtr(&first.buffer.buffer),
         first.buffer.len,
         .{
             .transfer_size_bytes = 1,

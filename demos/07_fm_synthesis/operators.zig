@@ -83,12 +83,12 @@ pub fn main() !void {
         if (keypad.get_event()) |event| {
             modulator.feed_event(.{
                 .keypad = event,
-                .vco_delta = frequency_table[@enumToInt(event.button)],
+                .vco_delta = frequency_table[@intFromEnum(event.button)],
             });
 
             carrier.feed_event(.{
                 .keypad = event,
-                .vco_delta = frequency_table[@enumToInt(event.button)],
+                .vco_delta = frequency_table[@intFromEnum(event.button)],
             });
         }
 

@@ -66,10 +66,10 @@ pub fn I2S(comptime Sample: type, comptime args: struct {
         };
 
         pub fn init(pio: rp2040.pio.Pio, comptime opts: InitOptions) @This() {
-            if (@enumToInt(opts.word_select_pin) != @enumToInt(opts.clk_pin) + 1)
+            if (@intFromEnum(opts.word_select_pin) != @intFromEnum(opts.clk_pin) + 1)
                 @panic("word select pin must be clk pin + 1");
 
-            if (@enumToInt(opts.data_pin) != @enumToInt(opts.word_select_pin) + 1)
+            if (@intFromEnum(opts.data_pin) != @intFromEnum(opts.word_select_pin) + 1)
                 @panic("word select pin must be word_select pin + 1");
 
             pio.gpio_init(opts.data_pin);
@@ -79,8 +79,8 @@ pub fn I2S(comptime Sample: type, comptime args: struct {
             const sm = pio.claim_unused_state_machine() catch unreachable;
             pio.sm_load_and_start_program(sm, i2s_program, .{
                 .clkdiv = comptime rp2040.pio.ClkDivOptions.from_float(div: {
-                    const sys_clk_freq = @intToFloat(f32, opts.clock_config.sys.?.output_freq);
-                    const i2s_clk_freq = @intToFloat(f32, args.sample_rate * sample_width * 2);
+                    const sys_clk_freq = @as(f32, @floatFromInt(opts.clock_config.sys.?.output_freq));
+                    const i2s_clk_freq = @as(f32, @floatFromInt(args.sample_rate * sample_width * 2));
 
                     // TODO: 2 or 4 PIO clocks generate one I2S clock cycle
                     const pio_clk_freq = 2 * i2s_clk_freq;
@@ -88,21 +88,21 @@ pub fn I2S(comptime Sample: type, comptime args: struct {
                 }),
                 .shift = .{
                     .autopull = true,
-                    .pull_threshold = @truncate(u5, sample_width),
+                    .pull_threshold = @as(u5, @truncate(sample_width)),
                     .join_tx = true,
                     .out_shiftdir = .left,
                 },
                 .pin_mappings = .{
                     .set = .{
-                        .base = @enumToInt(opts.clk_pin),
+                        .base = @intFromEnum(opts.clk_pin),
                         .count = 3,
                     },
                     .side_set = .{
-                        .base = @enumToInt(opts.clk_pin),
+                        .base = @intFromEnum(opts.clk_pin),
                         .count = 2,
                     },
                     .out = .{
-                        .base = @enumToInt(opts.data_pin),
+                        .base = @intFromEnum(opts.data_pin),
                         .count = 1,
                     },
                 },
@@ -124,9 +124,9 @@ pub fn I2S(comptime Sample: type, comptime args: struct {
         const UnsignedSample = std.meta.Int(.unsigned, @bitSizeOf(Sample));
         fn sample_to_fifo_entry(sample: Sample) u32 {
             const sample_shift = comptime 32 - sample_width;
-            return @intCast(
+            return @as(
                 u32,
-                @bitCast(UnsignedSample, sample),
+                @intCast(@as(UnsignedSample, @bitCast(sample))),
             ) << sample_shift;
         }
 

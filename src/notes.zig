@@ -15,7 +15,7 @@ pub const Octave = enum(u3) {
     _,
 
     pub fn num(n: u3) Octave {
-        return @intToEnum(Octave, n);
+        return @as(Octave, @enumFromInt(n));
     }
 };
 
@@ -40,11 +40,11 @@ pub fn calc_frequency(note: Note, octave: Octave) f32 {
 }
 
 fn calc_note_index(note: Note, octave: Octave) i32 {
-    return @enumToInt(note) + (@intCast(i32, num_notes_in_octave) * @enumToInt(octave));
+    return @intFromEnum(note) + (@as(i32, @intCast(num_notes_in_octave)) * @intFromEnum(octave));
 }
 
 fn frequency_from_index(index: i32) f32 {
-    return a4_hz * std.math.pow(f32, 2, @intToFloat(f32, index - ref_index) / @intToFloat(f32, num_notes_in_octave));
+    return a4_hz * std.math.pow(f32, 2, @as(f32, @floatFromInt(index - ref_index)) / @as(f32, @floatFromInt(num_notes_in_octave)));
 }
 
 /// calculate an octave's worth of a major scale starting from the "base" note
@@ -78,7 +78,7 @@ pub fn calc_full_octave(octave: Octave) [12]f32 {
     const base_index = calc_note_index(.A, octave);
     var result: [12]f32 = undefined;
     for (&result, 0..) |*r, i|
-        r.* = frequency_from_index(base_index + @intCast(i32, i));
+        r.* = frequency_from_index(base_index + @as(i32, @intCast(i)));
 
     return result;
 }

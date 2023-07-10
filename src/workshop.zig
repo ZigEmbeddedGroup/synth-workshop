@@ -19,7 +19,7 @@ pub fn apply_volume(sample: anytype, volume: u12) @TypeOf(sample) {
     comptime assert(std.meta.trait.isSignedInt(Sample));
 
     const product = std.math.mulWide(Sample, sample, volume);
-    return @intCast(Sample, product >> 12);
+    return @as(Sample, @intCast(product >> 12));
 }
 
 pub fn GlitchFilter(comptime samples: usize) type {
@@ -138,9 +138,9 @@ pub fn Volatile(comptime T: type) type {
 }
 
 pub fn phase_delta_from_float(sample_rate: u32, frequency: f64) u32 {
-    return @floatToInt(
+    return @as(
         u32,
-        frequency / @intToFloat(f64, sample_rate) * std.math.pow(f64, 2, 32),
+        @intFromFloat(frequency / @as(f64, @floatFromInt(sample_rate)) * std.math.pow(f64, 2, 32)),
     );
 }
 
@@ -176,7 +176,7 @@ pub fn Oscillator(comptime sample_rate: u32) type {
         }
 
         fn calculate_delta(frequency: u32) u32 {
-            return @intCast(u32, (@as(u64, 0x100000000) * frequency) / sample_rate);
+            return @as(u32, @intCast((@as(u64, 0x100000000) * frequency) / sample_rate));
         }
 
         pub fn tick(self: *Self) void {
@@ -186,14 +186,14 @@ pub fn Oscillator(comptime sample_rate: u32) type {
         pub fn tick_modulate(self: *Self, comptime T: type, input: T, ratio: FrequencyRatio) void {
             comptime assert(std.meta.trait.isSignedInt(T));
             // TODO: calculate Accumulator
-            const base = @intCast(i64, self.delta) * input;
+            const base = @as(i64, @intCast(self.delta)) * input;
             const mod_delta = ((base * ratio.int) >> @bitSizeOf(T)) +
                 ((base * ratio.frac) >> (@bitSizeOf(T) + 8));
             // TODO: will have truncated bits I think
             if (mod_delta < 0)
-                self.phase -%= @intCast(u32, -mod_delta)
+                self.phase -%= @as(u32, @intCast(-mod_delta))
             else
-                self.phase +%= @intCast(u32, mod_delta);
+                self.phase +%= @as(u32, @intCast(mod_delta));
         }
 
         pub fn set_frequency(self: *Self, frequency: u32) void {
@@ -209,10 +209,10 @@ pub fn Oscillator(comptime sample_rate: u32) type {
             comptime assert(std.meta.trait.isSignedInt(T));
 
             const UnsignedSample = std.meta.Int(.unsigned, @bitSizeOf(T));
-            return @bitCast(T, @truncate(
+            return @as(T, @bitCast(@as(
                 UnsignedSample,
-                self.phase >> 32 - @bitSizeOf(T),
-            ));
+                @truncate(self.phase >> 32 - @bitSizeOf(T)),
+            )));
         }
 
         pub fn to_square(self: Self, comptime T: type) T {
@@ -234,10 +234,10 @@ pub fn Oscillator(comptime sample_rate: u32) type {
 
                 assert(std.math.isPowerOfTwo(samples));
                 var ret: [samples]T = undefined;
-                const radian_delta = (2.0 * std.math.pi) / @intToFloat(comptime_float, samples);
+                const radian_delta = (2.0 * std.math.pi) / @as(comptime_float, @floatFromInt(samples));
 
                 for (0..samples) |i|
-                    ret[i] = @floatToInt(T, @intToFloat(f64, std.math.maxInt(T)) * @sin(@intToFloat(f64, i) * radian_delta));
+                    ret[i] = @as(T, @intFromFloat(@as(f64, @floatFromInt(std.math.maxInt(T))) * @sin(@as(f64, @floatFromInt(i)) * radian_delta)));
 
                 break :blk ret;
             };
@@ -246,7 +246,7 @@ pub fn Oscillator(comptime sample_rate: u32) type {
             const LutIndex = std.meta.Int(.unsigned, lut_bits);
             const x_span = comptime 1 << (32 - lut_bits);
 
-            const y0_index: LutIndex = @intCast(LutIndex, self.phase >> @as(u5, 32 - lut_bits));
+            const y0_index: LutIndex = @as(LutIndex, @intCast(self.phase >> @as(u5, 32 - lut_bits)));
             const y1_index = y0_index +% 1;
 
             const y0 = lut[y0_index];
@@ -256,11 +256,11 @@ pub fn Oscillator(comptime sample_rate: u32) type {
 
             const y_span = y1 - y0;
 
-            const x_delta = @intCast(i32, self.phase - x0);
+            const x_delta = @as(i32, @intCast(self.phase - x0));
             // TODO: fix overflow here
             const y = y0 + @divFloor(std.math.mulWide(i32, x_delta, y_span), x_span);
 
-            return @intCast(T, y);
+            return @as(T, @intCast(y));
         }
     };
 }
@@ -293,7 +293,7 @@ pub const Button = enum(u4) {
     d = 0xf,
 
     pub fn from_coord(coord: Coordinate) Button {
-        return @intToEnum(Button, @bitCast(u4, coord));
+        return @as(Button, @enumFromInt(@as(u4, @bitCast(coord))));
     }
 };
 
@@ -349,7 +349,7 @@ pub const Keypad = struct {
             break :blk gpio.mask(result);
         };
 
-        comptime assert(0 == (@enumToInt(row_mask) & @enumToInt(col_mask))); // pins overlap
+        comptime assert(0 == (@intFromEnum(row_mask) & @intFromEnum(col_mask))); // pins overlap
 
         col_mask.set_function(.sio);
         col_mask.set_direction(.in);
@@ -362,7 +362,7 @@ pub const Keypad = struct {
         return Self{
             .order = OrderList.init(0) catch unreachable,
             .pressed = [_]bool{false} ** 16,
-            .timestamps = [_]time.Absolute{@intToEnum(time.Absolute, 0)} ** 16,
+            .timestamps = [_]time.Absolute{@as(time.Absolute, @enumFromInt(0))} ** 16,
             .last_released = null,
             // TODO: figure out if this is okay
             .deadline = time.make_timeout_us(0),
@@ -384,11 +384,11 @@ pub const Keypad = struct {
         for (self.col_pins, 0..) |pin, col| {
             const button = Button.from_coord(.{
                 .row = self.row,
-                .col = @intCast(u2, col),
+                .col = @as(u2, @intCast(col)),
             });
 
             // detect that state has changed
-            const prev = self.pressed[@enumToInt(button)];
+            const prev = self.pressed[@intFromEnum(button)];
             const curr = (0 != result & (@as(u32, 1) << pin));
 
             // no state change detected, continue to the next button in
@@ -403,16 +403,16 @@ pub const Keypad = struct {
                 }
 
                 self.order.append(button) catch unreachable;
-                self.pressed[@enumToInt(button)] = true;
+                self.pressed[@intFromEnum(button)] = true;
             } else { // released
                 const index = std.mem.indexOfScalar(Button, self.order.slice(), button).?;
                 _ = self.order.orderedRemove(index);
                 self.last_released = button;
-                self.pressed[@enumToInt(button)] = false;
+                self.pressed[@intFromEnum(button)] = false;
             }
 
             // update timestamp to last state update
-            self.timestamps[@enumToInt(button)] = time.get_time_since_boot();
+            self.timestamps[@intFromEnum(button)] = time.get_time_since_boot();
             self.state_changed = true;
         }
 
@@ -437,7 +437,7 @@ pub const Keypad = struct {
             break :event Event{
                 .kind = kind,
                 .button = button,
-                .timestamp = self.timestamps[@enumToInt(button)],
+                .timestamp = self.timestamps[@intFromEnum(button)],
             };
         } else null;
     }
@@ -468,7 +468,7 @@ pub fn mix(
 
         var fixed_weights: [levels.len]T = undefined;
         for (float_weights, 0..) |float, i| {
-            fixed_weights[i] = @floatToInt(T, std.math.round(@intToFloat(f64, std.math.maxInt(T)) * float));
+            fixed_weights[i] = @as(T, @intFromFloat(std.math.round(@as(f64, @floatFromInt(std.math.maxInt(T))) * float)));
             assert(fixed_weights[i] != 0); // float weight was so small it doesn't fit
         }
 
@@ -496,7 +496,7 @@ pub fn mix(
     for (inputs, weights) |input, weight|
         tmp += std.math.mulWide(T, input, weight);
 
-    return @intCast(T, tmp >> (acc_bits - (@bitSizeOf(T) + levels.len)));
+    return @as(T, @intCast(tmp >> (acc_bits - (@bitSizeOf(T) + levels.len))));
 }
 
 pub fn AdsrEnvelopeGenerator(comptime T: type) type {
@@ -659,7 +659,7 @@ pub fn AdsrEnvelopeGenerator(comptime T: type) type {
         pub fn apply_envelope(self: Self, raw_sample: T) T {
             const wide = std.math.mulWide(T, raw_sample, self.envelope);
             const shifted = wide >> @bitSizeOf(Envelope);
-            return @intCast(T, shifted);
+            return @as(T, @intCast(shifted));
         }
 
         // x0 is assummed to be 0
@@ -670,11 +670,11 @@ pub fn AdsrEnvelopeGenerator(comptime T: type) type {
             y1: T,
         ) Envelope {
             const y_span = y1 - y0;
-            const x_delta = @intCast(i32, x.to_us());
-            const x_span = @intCast(i32, x1.to_us());
+            const x_delta = @as(i32, @intCast(x.to_us()));
+            const x_span = @as(i32, @intCast(x1.to_us()));
             assert(x_span >= x_delta);
             const y = y0 + @divFloor(std.math.mulWide(i32, x_delta, y_span), x_span);
-            return @intCast(Envelope, y);
+            return @as(Envelope, @intCast(y));
         }
 
         comptime {

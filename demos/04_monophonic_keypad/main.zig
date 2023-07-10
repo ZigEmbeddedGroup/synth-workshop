@@ -63,7 +63,7 @@ pub fn main() !void {
 
         keypad.tick();
         if (keypad.get_event()) |event| switch (event.kind) {
-            .pressed => vco.delta = frequency_table[@enumToInt(event.button)],
+            .pressed => vco.delta = frequency_table[@intFromEnum(event.button)],
             .released => vco.reset(),
         };
 

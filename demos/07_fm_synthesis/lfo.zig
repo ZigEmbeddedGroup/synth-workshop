@@ -69,7 +69,7 @@ pub fn main() !void {
         keypad.tick();
         if (keypad.get_event()) |event| {
             adsr.feed_event(event);
-            vco.delta = frequency_table[@enumToInt(event.button)];
+            vco.delta = frequency_table[@intFromEnum(event.button)];
         }
 
         lfo.tick();

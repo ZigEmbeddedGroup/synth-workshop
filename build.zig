@@ -2,8 +2,8 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Builder = std.build.Builder;
 
-const rp2040 = @import("deps/raspberrypi-rp2040/build.zig");
-const uf2 = @import("deps/uf2/src/main.zig");
+const rp2040 = @import("rp2040");
+const uf2 = @import("uf2");
 
 const Demo = struct {
     name: []const u8,
@@ -27,6 +27,16 @@ const demos: []const Demo = &.{
 
 pub fn build(b: *Builder) void {
     const optimize = b.standardOptimizeOption(.{});
+
+    const raylib_zig_dep = b.dependency("raylib_zig", .{
+        .optimize = optimize,
+    });
+
+    const raylib_dep = b.dependency("raylib", .{
+        .optimize = optimize,
+    });
+
+    const uf2_dep = b.dependency("uf2", .{});
     for (demos) |demo| {
         const workshop_module = b.createModule(.{
             .source_file = .{
@@ -45,9 +55,23 @@ pub fn build(b: *Builder) void {
         });
         exe.installArtifact(b);
 
-        const uf2_step = uf2.Uf2Step.create(exe.inner, .{ .family_id = .RP2040 });
-        uf2_step.install();
+        const uf2_file = uf2.from_elf(uf2_dep, exe.inner, .{ .family_id = .RP2040 });
+        _ = b.addInstallFile(uf2_file, b.fmt("bin/{s}.uf2", .{demo.name}));
     }
+
+    // monitor application
+    const monitor_exe = b.addExecutable(.{
+        .name = "monitor",
+        .root_source_file = .{ .path = "src/monitor_exe.zig" },
+        .optimize = optimize,
+    });
+
+    monitor_exe.addModule("raylib", raylib_zig_dep.module("raylib"));
+    monitor_exe.linkLibrary(raylib_dep.artifact("raylib"));
+
+    const monitor_run = b.addRunArtifact(monitor_exe);
+    const monitor_step = b.step("monitor", "Run monitor application");
+    monitor_step.dependOn(&monitor_run.step);
 
     // tools
     const os_str = comptime enum_to_string(builtin.os.tag);

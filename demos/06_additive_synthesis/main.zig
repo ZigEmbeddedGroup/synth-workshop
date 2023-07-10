@@ -96,7 +96,7 @@ pub fn main() !void {
         if (keypad.get_event()) |event| {
             adsr.feed_event(event);
             for (&vco_bank, 0..) |*vco, i|
-                vco.delta = frequency_table[@enumToInt(event.button)][i];
+                vco.delta = frequency_table[@intFromEnum(event.button)][i];
         }
 
         // TODO: mix_wide
