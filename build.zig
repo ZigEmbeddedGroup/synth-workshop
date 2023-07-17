@@ -79,9 +79,8 @@ pub fn build(b: *Builder) void {
 
     // openocd
     const openocd_subdir = comptime std.fmt.comptimePrint("tools/openocd/{s}-{s}", .{ arch_str, os_str });
-    const openocd_scripts_dir = comptime std.fmt.comptimePrint("{s}/share/openocd/scripts", .{openocd_subdir});
     const openocd_exe = if (builtin.os.tag == .linux)
-        "openocd"
+        "tools/openocd/bring-your-own/install/bin/openocd"
     else
         comptime std.fmt.comptimePrint("{s}/bin/openocd{s}", .{
         openocd_subdir,
@@ -99,7 +98,7 @@ pub fn build(b: *Builder) void {
 
     // linux users need to build their own openocd
     if (builtin.os.tag == .linux) {
-        run_openocd.addArgs(&.{ "-s", openocd_scripts_dir });
+        run_openocd.addArgs(&.{ "-s", "tools/openocd/bring-your-own/install/share/openocd/scripts" });
     }
 
     const openocd = b.step("openocd", "run openocd for your debugger");
