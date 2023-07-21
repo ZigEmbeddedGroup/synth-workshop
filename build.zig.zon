@@ -12,7 +12,7 @@
         },
         .raylib = .{
             .url = "https://github.com/raysan5/raylib/archive/2e00d16f3d3808defe76d9af75df2dd714c66af2.tar.gz",
-            .hash = "12201bd4deaec52ec980be7ab83954c49aedf91bc43473720a8bb00f0251031472c9",
+            .hash = "1220b36684908380c4a1778c6c90b6b81a4ffba6d778e1f47dc7cab7ec9b2578dc85",
         },
         .uf2 = .{
             .url = "https://github.com/ZigEmbeddedGroup/uf2/archive/206c027ee4c5eaf409b7bcbce86339c97b4926a6.tar.gz",
