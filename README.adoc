@@ -49,16 +49,27 @@ If this does not work for you for some reason, you can download zig from https:/
 
 At the time of writing, I've not been able to get the current release of OpenOCD (0.12.0) working correctly on MacOS, this was sourced using `brew`. Instead I have found success with https://github.com/raspberrypi/openocd[Raspberry Pi's fork of OpenOCD].
 
-If you run `windows` or `macos` I've committed binaries to this repository since they're easy to package. If you run `linux` though you'll have to build it on your own, and then add it to your `PATH`:
+If you run `windows` or `macos` I've committed binaries to this repository since they're easy to package. If you run `linux` though you'll have to build it on your own inside of "tools/openocd/bring-your-own". This folder and it's correct contents are created when the following commands are run from the root of this repository:
 
 [source]
 ----
-git clone https://github.com/raspberrypi/openocd
-cd openocd
+cd tools/openocd
+git clone https://github.com/raspberrypi/openocd bring-your-own
+cd bring-your-own
 ./bootstrap
-./configure --enable-picoprobe --prefix ~/.local # change the prefix/install location as you like
+./configure --enable-picoprobe --prefix $PWD/install
 make -j4 install
 ----
+
+==== Permissions on Linux
+By default, serial devices on Linux (The picobrobe being one of them) are not usable by non-root users. To enable access, you must add a udev rule in "/etc/udev/rules.d" to tell Linux that you want the permissions on the device to be writable by all users. This can be done by running the following command:
+
+[source]
+----
+echo 'ATTRS{product}=="*CMSIS-DAP*", MODE="660", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/60-openocd-picoprobe.rules
+----
+
+The pico probe should work after re-plugging it into your computer.
 
 == Setting up VS Code for Zig and Embedded Development
 

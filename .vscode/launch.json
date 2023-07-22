@@ -6,15 +6,15 @@
     "configurations": [
         {
             "cwd": "${workspaceRoot}",
-            "executable": "zig-out/bin/adsr",
+            "executable": "zig-out/bin/single_tone",
             "name": "Debug with OpenOCD",
             "request": "launch",
             "type": "cortex-debug",
-            "servertype": "openocd",
-            "configFiles": [],
-            "searchDir": [],
+            "servertype": "external",
             "runToEntryPoint": "main.main",
-            "showDevDebugOutput": "none"
+            "showDevDebugOutput": "raw",
+            "preLaunchTask": "Build",
+            "gdbTarget": "localhost:3333",
         },
         {
             "debuggerPath": "arm-none-eabi-gdb",
